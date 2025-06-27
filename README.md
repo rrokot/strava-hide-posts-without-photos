@@ -5,11 +5,17 @@ When enabled, it automatically hides all feed posts that don't contain any photo
 
 ---
 
+## Screenshot
+
+![Screenshot](./Screenshot.png)
+
+---
+
 ## Features
 
 - Toggle button appears next to the feed filter dropdown (e.g., "Following" / "All")
 - Persistent filter state (remembers ON/OFF after page reloads)
-- Uses a small SVG camera icon with a tooltip for clean UI integration
+- Small camera icon button with tooltip for clean UI integration
 - Works with infinite scroll and dynamically loaded feed items
 
 ---
@@ -18,7 +24,7 @@ When enabled, it automatically hides all feed posts that don't contain any photo
 
 1. Install [Tampermonkey](https://www.tampermonkey.net/) (or any compatible userscript manager) in your browser.
 2. Download and install the script from this repository:  
-   [strava-hide-posts-without-photos.user.js](./strava-hide-posts-without-photos.user.js)
+   [`strava-hide-posts-without-photos.user.js`](./strava-hide-posts-without-photos.user.js)
 3. Reload your Strava Dashboard:  
    [https://www.strava.com/dashboard](https://www.strava.com/dashboard)
 
@@ -27,7 +33,7 @@ When enabled, it automatically hides all feed posts that don't contain any photo
 ## How it works
 
 - By default, the filter is **enabled**.
-- The small camera icon button (🖼️) next to the feed dropdown toggles the filter.
+- The camera icon button toggles the filter ON/OFF.
 - The button color indicates the state:
   - **Orange (#fc5200)** = Filter ON (hiding posts without photos)
   - **Gray (#888888)** = Filter OFF (showing all posts)
