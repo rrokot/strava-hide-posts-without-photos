@@ -22,11 +22,9 @@ When enabled, it automatically hides all feed posts that don't contain any photo
 
 ## Installation
 
-1. Install [Tampermonkey](https://www.tampermonkey.net/) (or any compatible userscript manager) in your browser.
-2. Download and install the script from this repository:  
-   [`strava-hide-posts-without-photos.user.js`](./strava-hide-posts-without-photos.user.js)
-3. Reload your Strava Dashboard:  
-   [https://www.strava.com/dashboard](https://www.strava.com/dashboard)
+1. Install [Tampermonkey](https://www.tampermonkey.net/).
+2. Click to install the userscript: [**Install Strava Photo Filter**](https://raw.githubusercontent.com/rrokot/strava-hide-posts-without-photos/main/strava-photo-filter-toggle.user.js)
+
 
 ---
 
