@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Strava Dashboard - Photo Filter Toggle with Persistence
-// @version      5.3
+// @version      5.4
 // @description  Adds filter buttons to hide posts without photos and/or virtual activities on Strava Dashboard. State persists between reloads.
 // @author       https://www.strava.com/athletes/5931245
 // @match        https://www.strava.com/dashboard*
@@ -12,9 +12,14 @@
 (function() {
     'use strict';
 
+    const FEED_CONTAINER_SELECTOR = '.feature-feed';
     const FEED_ENTRY_SELECTOR = 'div[id^="feed-entry-"]';
     const FILTER_FORM_SELECTOR = 'form.uRdSO2YS';
     const FILTER_WRAPPER_ID = 'strava-feed-filter-toggles';
+    const STYLE_ELEMENT_ID = 'strava-feed-filter-styles';
+    const PHOTO_SELECTOR = '[data-testid="photo"]';
+    const VIRTUAL_TAG_SELECTOR = 'div[data-testid="tag"]';
+    const VIRTUAL_ENTRY_ATTRIBUTE = 'data-strava-virtual-entry';
     const BUTTON_ACTIVE_COLOR = '#fc5200';
     const BUTTON_INACTIVE_COLOR = '#888';
 
@@ -24,9 +29,7 @@
             title: 'Hide posts without photos',
             storageKey: 'stravaPhotoFilterEnabled',
             defaultEnabled: true,
-            matches(entry) {
-                return !entry.querySelector('div[data-testid="photo"]');
-            },
+            bodyClass: 'strava-hide-no-photo',
             icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="white">
                 <path d="M12 5c-3.86 0-7 3.14-7 7s3.14 7 7 7 7-3.14 7-7-3.14-7-7-7zm0-2c1.1 0 2 .9 2 2h3.17C18.6 5 19 5.4 19 5.83V7h1c1.1 0 2 .9 2 2v9c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V9c0-1.1.9-2 2-2h1V5.83C5 5.4 5.4 5 5.83 5H9c0-1.1.9-2 2-2zm0 5c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zm0 2c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3z"/>
             </svg>`
@@ -36,22 +39,47 @@
             title: 'Hide virtual activities',
             storageKey: 'stravaVirtualFilterEnabled',
             defaultEnabled: false,
-            matches(entry) {
-                const tag = entry.querySelector('div[data-testid="tag"]');
-                return !!tag && tag.textContent.trim().toLowerCase() === 'virtual';
-            },
+            bodyClass: 'strava-hide-virtual',
             icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="white">
                 <path d="M21 2H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h7l-2 3v1h8v-1l-2-3h7c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H3V4h18v12z"/>
             </svg>`
         }
     ];
 
-    let observer = null;
-    let scheduledFilterFrame = null;
+    let rootObserver = null;
+    let feedObserver = null;
+    let feedContainer = null;
     const filterState = {};
     const filterUi = {};
+    const trackedEntries = new Map();
+    const hiddenCounts = {
+        photo: 0,
+        virtual: 0
+    };
 
-    loadFilterState();
+    function ensureStyles() {
+        if (document.getElementById(STYLE_ELEMENT_ID)) {
+            return;
+        }
+
+        const style = document.createElement('style');
+        style.id = STYLE_ELEMENT_ID;
+        style.textContent = `
+            body.${getFilterConfig('photo').bodyClass} ${FEED_CONTAINER_SELECTOR} ${FEED_ENTRY_SELECTOR}:not(:has(${PHOTO_SELECTOR})) {
+                display: none !important;
+            }
+
+            body.${getFilterConfig('virtual').bodyClass} ${FEED_CONTAINER_SELECTOR} ${FEED_ENTRY_SELECTOR}[${VIRTUAL_ENTRY_ATTRIBUTE}="true"] {
+                display: none !important;
+            }
+        `;
+
+        document.head.appendChild(style);
+    }
+
+    function getFilterConfig(filterId) {
+        return FILTERS.find(filter => filter.id === filterId);
+    }
 
     function loadFilterState() {
         FILTERS.forEach(filter => {
@@ -73,122 +101,205 @@
         }
     }
 
-    function anyFilterActive() {
-        return FILTERS.some(filter => filterState[filter.id]);
-    }
-
-    function applyFilters() {
-        const hiddenCounts = {};
-
+    function refreshBadges() {
         FILTERS.forEach(filter => {
-            hiddenCounts[filter.id] = 0;
-        });
-
-        document.querySelectorAll(FEED_ENTRY_SELECTOR).forEach(entry => {
-            let shouldHide = false;
-
-            FILTERS.forEach(filter => {
-                if (filterState[filter.id] && filter.matches(entry)) {
-                    hiddenCounts[filter.id]++;
-                    shouldHide = true;
-                }
-            });
-
-            entry.style.display = shouldHide ? 'none' : '';
-        });
-
-        FILTERS.forEach(filter => {
-            updateBadge(filterUi[filter.id]?.badge, filterState[filter.id] ? hiddenCounts[filter.id] : 0);
+            const count = filterState[filter.id] ? hiddenCounts[filter.id] : 0;
+            updateBadge(filterUi[filter.id]?.badge, count);
         });
     }
 
-    function cancelScheduledApply() {
-        if (scheduledFilterFrame !== null) {
-            cancelAnimationFrame(scheduledFilterFrame);
-            scheduledFilterFrame = null;
-        }
-    }
-
-    function scheduleApplyFilters() {
-        if (scheduledFilterFrame !== null) {
+    function applyFilterClasses() {
+        if (!document.body) {
             return;
         }
 
-        scheduledFilterFrame = requestAnimationFrame(() => {
-            scheduledFilterFrame = null;
-            if (anyFilterActive()) {
-                applyFilters();
-            }
-        });
-    }
-
-    function showAllPosts() {
-        document.querySelectorAll(FEED_ENTRY_SELECTOR).forEach(entry => {
-            entry.style.display = '';
-        });
-
         FILTERS.forEach(filter => {
-            updateBadge(filterUi[filter.id]?.badge, 0);
+            document.body.classList.toggle(filter.bodyClass, filterState[filter.id]);
         });
     }
 
-    function syncFilters() {
-        if (anyFilterActive()) {
-            applyFilters();
-            return;
-        }
+    function syncFilterUi() {
+        FILTERS.forEach(filter => {
+            updateButtonStyle(filterUi[filter.id]?.button, filterState[filter.id]);
+        });
+        refreshBadges();
+    }
 
-        cancelScheduledApply();
-        showAllPosts();
+    function toggleFilter(filter) {
+        filterState[filter.id] = !filterState[filter.id];
+        localStorage.setItem(filter.storageKey, filterState[filter.id] ? 'true' : 'false');
+        applyFilterClasses();
+        syncFilterUi();
     }
 
     function isElement(node) {
         return node && node.nodeType === Node.ELEMENT_NODE;
     }
 
-    function nodeTouchesFeed(node) {
-        if (!isElement(node)) {
-            return false;
-        }
-
-        return node.matches(FEED_ENTRY_SELECTOR)
-            || !!node.querySelector(FEED_ENTRY_SELECTOR)
-            || !!node.closest(FEED_ENTRY_SELECTOR);
+    function isVirtualActivity(entry) {
+        const tag = entry.querySelector(VIRTUAL_TAG_SELECTOR);
+        return !!tag && tag.textContent.trim().toLowerCase() === 'virtual';
     }
 
-    function mutationsTouchFeed(mutations) {
-        return mutations.some(mutation => {
-            if (nodeTouchesFeed(mutation.target)) {
-                return true;
-            }
-
-            return [...mutation.addedNodes, ...mutation.removedNodes].some(nodeTouchesFeed);
-        });
+    function analyzeEntry(entry) {
+        return {
+            hasPhoto: !!entry.querySelector(PHOTO_SELECTOR),
+            isVirtual: isVirtualActivity(entry)
+        };
     }
 
-    function startObserver() {
-        if (observer) {
+    function setVirtualEntryAttribute(entry, isVirtual) {
+        if (isVirtual) {
+            entry.setAttribute(VIRTUAL_ENTRY_ATTRIBUTE, 'true');
             return;
         }
 
-        observer = new MutationObserver((mutations) => {
-            if (!anyFilterActive()) {
-                return;
-            }
+        entry.removeAttribute(VIRTUAL_ENTRY_ATTRIBUTE);
+    }
 
-            if (mutationsTouchFeed(mutations)) {
-                scheduleApplyFilters();
+    function updateTrackedEntry(entry) {
+        const nextState = analyzeEntry(entry);
+        const previousState = trackedEntries.get(entry);
+
+        if (!previousState) {
+            if (!nextState.hasPhoto) {
+                hiddenCounts.photo += 1;
+            }
+            if (nextState.isVirtual) {
+                hiddenCounts.virtual += 1;
+            }
+        } else {
+            if (previousState.hasPhoto !== nextState.hasPhoto) {
+                hiddenCounts.photo += nextState.hasPhoto ? -1 : 1;
+            }
+            if (previousState.isVirtual !== nextState.isVirtual) {
+                hiddenCounts.virtual += nextState.isVirtual ? 1 : -1;
+            }
+        }
+
+        trackedEntries.set(entry, nextState);
+        setVirtualEntryAttribute(entry, nextState.isVirtual);
+    }
+
+    function removeTrackedEntry(entry) {
+        const previousState = trackedEntries.get(entry);
+        if (!previousState) {
+            return;
+        }
+
+        if (!previousState.hasPhoto) {
+            hiddenCounts.photo = Math.max(0, hiddenCounts.photo - 1);
+        }
+        if (previousState.isVirtual) {
+            hiddenCounts.virtual = Math.max(0, hiddenCounts.virtual - 1);
+        }
+
+        trackedEntries.delete(entry);
+        entry.removeAttribute(VIRTUAL_ENTRY_ATTRIBUTE);
+    }
+
+    function clearTrackedEntries() {
+        trackedEntries.forEach((_, entry) => {
+            entry.removeAttribute(VIRTUAL_ENTRY_ATTRIBUTE);
+        });
+        trackedEntries.clear();
+        hiddenCounts.photo = 0;
+        hiddenCounts.virtual = 0;
+    }
+
+    function indexFeedEntries() {
+        clearTrackedEntries();
+
+        if (!feedContainer) {
+            refreshBadges();
+            return;
+        }
+
+        feedContainer.querySelectorAll(FEED_ENTRY_SELECTOR).forEach(updateTrackedEntry);
+        refreshBadges();
+    }
+
+    function collectClosestEntry(node, result) {
+        if (!isElement(node)) {
+            return;
+        }
+
+        const closestEntry = node.closest(FEED_ENTRY_SELECTOR);
+        if (closestEntry) {
+            result.add(closestEntry);
+        }
+    }
+
+    function collectEntriesFromNode(node, result) {
+        if (!isElement(node)) {
+            return;
+        }
+
+        if (node.matches(FEED_ENTRY_SELECTOR)) {
+            result.add(node);
+        }
+
+        node.querySelectorAll(FEED_ENTRY_SELECTOR).forEach(entry => {
+            result.add(entry);
+        });
+
+        collectClosestEntry(node, result);
+    }
+
+    function processFeedMutations(mutations) {
+        const affectedEntries = new Set();
+
+        mutations.forEach(mutation => {
+            collectClosestEntry(mutation.target, affectedEntries);
+            mutation.addedNodes.forEach(node => collectEntriesFromNode(node, affectedEntries));
+            mutation.removedNodes.forEach(node => collectEntriesFromNode(node, affectedEntries));
+        });
+
+        affectedEntries.forEach(entry => {
+            if (feedContainer && entry.isConnected && feedContainer.contains(entry)) {
+                updateTrackedEntry(entry);
+            } else {
+                removeTrackedEntry(entry);
             }
         });
 
-        observer.observe(document.body, { childList: true, subtree: true });
+        refreshBadges();
     }
 
-    function toggleFilter(filter) {
-        filterState[filter.id] = !filterState[filter.id];
-        localStorage.setItem(filter.storageKey, filterState[filter.id] ? 'true' : 'false');
-        updateButtonStyle(filterUi[filter.id]?.button, filterState[filter.id]);
-        syncFilters();
+    function disconnectFeedObserver() {
+        if (feedObserver) {
+            feedObserver.disconnect();
+            feedObserver = null;
+        }
+    }
+
+    function connectFeedObserver() {
+        if (!feedContainer || feedObserver) {
+            return;
+        }
+
+        feedObserver = new MutationObserver(processFeedMutations);
+        feedObserver.observe(feedContainer, { childList: true, subtree: true });
+    }
+
+    function syncFeedConnection() {
+        const nextFeedContainer = document.querySelector(FEED_CONTAINER_SELECTOR);
+
+        if (nextFeedContainer === feedContainer) {
+            return;
+        }
+
+        disconnectFeedObserver();
+        clearTrackedEntries();
+        feedContainer = nextFeedContainer;
+
+        if (!feedContainer) {
+            refreshBadges();
+            return;
+        }
+
+        connectFeedObserver();
+        indexFeedEntries();
     }
 
     function createBadge() {
@@ -252,40 +363,72 @@
         });
 
         targetForm.appendChild(wrapper);
+        syncFilterUi();
     }
 
-    function initializeUi(targetForm) {
-        insertButtons(targetForm);
-        syncFilters();
-        startObserver();
+    function ensureFilterButtons() {
+        const filterForm = document.querySelector(FILTER_FORM_SELECTOR);
+        if (filterForm) {
+            insertButtons(filterForm);
+        }
     }
 
-    function waitForFilterForm() {
-        const existingForm = document.querySelector(FILTER_FORM_SELECTOR);
-        if (existingForm) {
-            initializeUi(existingForm);
+    function nodeTouchesBootstrapTargets(node) {
+        if (!isElement(node)) {
+            return false;
+        }
+
+        return node.matches(FILTER_FORM_SELECTOR)
+            || node.matches(FEED_CONTAINER_SELECTOR)
+            || !!node.querySelector(FILTER_FORM_SELECTOR)
+            || !!node.querySelector(FEED_CONTAINER_SELECTOR);
+    }
+
+    function mutationsTouchBootstrapTargets(mutations) {
+        return mutations.some(mutation => {
+            if (nodeTouchesBootstrapTargets(mutation.target)) {
+                return true;
+            }
+
+            return [...mutation.addedNodes, ...mutation.removedNodes].some(nodeTouchesBootstrapTargets);
+        });
+    }
+
+    function startRootObserver() {
+        if (rootObserver) {
             return;
         }
 
-        const formObserver = new MutationObserver((mutations, obs) => {
-            const form = document.querySelector(FILTER_FORM_SELECTOR);
-            if (form && !document.getElementById(FILTER_WRAPPER_ID)) {
-                initializeUi(form);
-                obs.disconnect();
+        rootObserver = new MutationObserver((mutations) => {
+            if (!mutationsTouchBootstrapTargets(mutations)) {
+                return;
             }
+
+            ensureFilterButtons();
+            syncFeedConnection();
         });
 
-        formObserver.observe(document.body, { childList: true, subtree: true });
+        rootObserver.observe(document.body, { childList: true, subtree: true });
+    }
+
+    function initialize() {
+        loadFilterState();
+        ensureStyles();
+        applyFilterClasses();
+        ensureFilterButtons();
+        syncFeedConnection();
+        startRootObserver();
+        syncFilterUi();
     }
 
     window.addEventListener('beforeunload', () => {
-        if (observer) {
-            observer.disconnect();
-            observer = null;
-        }
+        disconnectFeedObserver();
 
-        cancelScheduledApply();
+        if (rootObserver) {
+            rootObserver.disconnect();
+            rootObserver = null;
+        }
     });
 
-    waitForFilterForm();
+    initialize();
 })();
