@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Strava Dashboard - Photo Filter Toggle with Persistence
-// @version      5.1
+// @version      5.3
 // @description  Adds filter buttons to hide posts without photos and/or virtual activities on Strava Dashboard. State persists between reloads.
 // @author       https://www.strava.com/athletes/5931245
 // @match        https://www.strava.com/dashboard*
@@ -13,26 +13,52 @@
     'use strict';
 
     const FEED_ENTRY_SELECTOR = 'div[id^="feed-entry-"]';
-    const PHOTO_SELECTOR = 'div[data-testid="photo"]';
-    const VIRTUAL_TAG_SELECTOR = 'div[data-testid="tag"]';
     const FILTER_FORM_SELECTOR = 'form.uRdSO2YS';
+    const FILTER_WRAPPER_ID = 'strava-feed-filter-toggles';
+    const BUTTON_ACTIVE_COLOR = '#fc5200';
+    const BUTTON_INACTIVE_COLOR = '#888';
+
+    const FILTERS = [
+        {
+            id: 'photo',
+            title: 'Hide posts without photos',
+            storageKey: 'stravaPhotoFilterEnabled',
+            defaultEnabled: true,
+            matches(entry) {
+                return !entry.querySelector('div[data-testid="photo"]');
+            },
+            icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="white">
+                <path d="M12 5c-3.86 0-7 3.14-7 7s3.14 7 7 7 7-3.14 7-7-3.14-7-7-7zm0-2c1.1 0 2 .9 2 2h3.17C18.6 5 19 5.4 19 5.83V7h1c1.1 0 2 .9 2 2v9c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V9c0-1.1.9-2 2-2h1V5.83C5 5.4 5.4 5 5.83 5H9c0-1.1.9-2 2-2zm0 5c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zm0 2c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3z"/>
+            </svg>`
+        },
+        {
+            id: 'virtual',
+            title: 'Hide virtual activities',
+            storageKey: 'stravaVirtualFilterEnabled',
+            defaultEnabled: false,
+            matches(entry) {
+                const tag = entry.querySelector('div[data-testid="tag"]');
+                return !!tag && tag.textContent.trim().toLowerCase() === 'virtual';
+            },
+            icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="white">
+                <path d="M21 2H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h7l-2 3v1h8v-1l-2-3h7c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H3V4h18v12z"/>
+            </svg>`
+        }
+    ];
 
     let observer = null;
-    let observerActive = false;
-    let debounceTimer = null;
-    const DEBOUNCE_MS = 150;
+    let scheduledFilterFrame = null;
+    const filterState = {};
+    const filterUi = {};
 
-    // Filter states
-    let photoFilterEnabled = true;
-    let virtualFilterEnabled = false;
-    const photoStorageKey = 'stravaPhotoFilterEnabled';
-    const virtualStorageKey = 'stravaVirtualFilterEnabled';
+    loadFilterState();
 
-    // UI elements
-    let photoButton = null;
-    let virtualButton = null;
-    let photoCounter = null;
-    let virtualCounter = null;
+    function loadFilterState() {
+        FILTERS.forEach(filter => {
+            const savedValue = localStorage.getItem(filter.storageKey);
+            filterState[filter.id] = savedValue === null ? filter.defaultEnabled : savedValue === 'true';
+        });
+    }
 
     function updateBadge(badge, count) {
         if (badge) {
@@ -41,47 +67,79 @@
         }
     }
 
-    function isVirtualActivity(entry) {
-        const tag = entry.querySelector(VIRTUAL_TAG_SELECTOR);
-        return tag && tag.textContent.trim().toLowerCase() === 'virtual';
+    function updateButtonStyle(button, enabled) {
+        if (button) {
+            button.style.backgroundColor = enabled ? BUTTON_ACTIVE_COLOR : BUTTON_INACTIVE_COLOR;
+        }
+    }
+
+    function anyFilterActive() {
+        return FILTERS.some(filter => filterState[filter.id]);
     }
 
     function applyFilters() {
-        let photoHidden = 0;
-        let virtualHidden = 0;
+        const hiddenCounts = {};
+
+        FILTERS.forEach(filter => {
+            hiddenCounts[filter.id] = 0;
+        });
+
         document.querySelectorAll(FEED_ENTRY_SELECTOR).forEach(entry => {
             let shouldHide = false;
 
-            if (photoFilterEnabled) {
-                const hasPhoto = entry.querySelector(PHOTO_SELECTOR);
-                if (!hasPhoto) {
+            FILTERS.forEach(filter => {
+                if (filterState[filter.id] && filter.matches(entry)) {
+                    hiddenCounts[filter.id]++;
                     shouldHide = true;
-                    photoHidden++;
                 }
-            }
-
-            if (virtualFilterEnabled && isVirtualActivity(entry)) {
-                shouldHide = true;
-                virtualHidden++;
-            }
+            });
 
             entry.style.display = shouldHide ? 'none' : '';
         });
-        updateBadge(photoCounter, photoFilterEnabled ? photoHidden : 0);
-        updateBadge(virtualCounter, virtualFilterEnabled ? virtualHidden : 0);
+
+        FILTERS.forEach(filter => {
+            updateBadge(filterUi[filter.id]?.badge, filterState[filter.id] ? hiddenCounts[filter.id] : 0);
+        });
     }
 
-    function applyFiltersDebounced() {
-        clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(applyFilters, DEBOUNCE_MS);
+    function cancelScheduledApply() {
+        if (scheduledFilterFrame !== null) {
+            cancelAnimationFrame(scheduledFilterFrame);
+            scheduledFilterFrame = null;
+        }
+    }
+
+    function scheduleApplyFilters() {
+        if (scheduledFilterFrame !== null) {
+            return;
+        }
+
+        scheduledFilterFrame = requestAnimationFrame(() => {
+            scheduledFilterFrame = null;
+            if (anyFilterActive()) {
+                applyFilters();
+            }
+        });
     }
 
     function showAllPosts() {
         document.querySelectorAll(FEED_ENTRY_SELECTOR).forEach(entry => {
             entry.style.display = '';
         });
-        updateBadge(photoCounter, 0);
-        updateBadge(virtualCounter, 0);
+
+        FILTERS.forEach(filter => {
+            updateBadge(filterUi[filter.id]?.badge, 0);
+        });
+    }
+
+    function syncFilters() {
+        if (anyFilterActive()) {
+            applyFilters();
+            return;
+        }
+
+        cancelScheduledApply();
+        showAllPosts();
     }
 
     function isElement(node) {
@@ -94,8 +152,6 @@
         }
 
         return node.matches(FEED_ENTRY_SELECTOR)
-            || node.matches(PHOTO_SELECTOR)
-            || node.matches(VIRTUAL_TAG_SELECTOR)
             || !!node.querySelector(FEED_ENTRY_SELECTOR)
             || !!node.closest(FEED_ENTRY_SELECTOR);
     }
@@ -110,56 +166,28 @@
         });
     }
 
-    function anyFilterActive() {
-        return photoFilterEnabled || virtualFilterEnabled;
-    }
-
     function startObserver() {
-        if (!observerActive) {
-            observer = new MutationObserver((mutations) => {
-                if (mutationsTouchFeed(mutations)) {
-                    applyFiltersDebounced();
-                }
-            });
-            observer.observe(document.body, { childList: true, subtree: true });
-            observerActive = true;
+        if (observer) {
+            return;
         }
+
+        observer = new MutationObserver((mutations) => {
+            if (!anyFilterActive()) {
+                return;
+            }
+
+            if (mutationsTouchFeed(mutations)) {
+                scheduleApplyFilters();
+            }
+        });
+
+        observer.observe(document.body, { childList: true, subtree: true });
     }
 
-    function stopObserver() {
-        if (observer && observerActive) {
-            observer.disconnect();
-            observer = null;
-            observerActive = false;
-        }
-        clearTimeout(debounceTimer);
-    }
-
-    function syncFilters() {
-        if (anyFilterActive()) {
-            applyFilters();
-            startObserver();
-        } else {
-            stopObserver();
-            showAllPosts();
-        }
-    }
-
-    function updateButtonStyle(button, enabled) {
-        button.style.backgroundColor = enabled ? '#fc5200' : '#888';
-    }
-
-    function togglePhotoFilter() {
-        photoFilterEnabled = !photoFilterEnabled;
-        localStorage.setItem(photoStorageKey, photoFilterEnabled ? 'true' : 'false');
-        updateButtonStyle(photoButton, photoFilterEnabled);
-        syncFilters();
-    }
-
-    function toggleVirtualFilter() {
-        virtualFilterEnabled = !virtualFilterEnabled;
-        localStorage.setItem(virtualStorageKey, virtualFilterEnabled ? 'true' : 'false');
-        updateButtonStyle(virtualButton, virtualFilterEnabled);
+    function toggleFilter(filter) {
+        filterState[filter.id] = !filterState[filter.id];
+        localStorage.setItem(filter.storageKey, filterState[filter.id] ? 'true' : 'false');
+        updateButtonStyle(filterUi[filter.id]?.button, filterState[filter.id]);
         syncFilters();
     }
 
@@ -185,9 +213,9 @@
         return badge;
     }
 
-    function createFilterButton(title, svgHTML, onClick) {
+    function createFilterButton(filter) {
         const button = document.createElement('button');
-        button.title = title;
+        button.title = filter.title;
         button.style.cssText = `
             width: 32px; height: 32px; padding: 4px;
             color: white; border: none; border-radius: 4px;
@@ -195,89 +223,69 @@
             justify-content: center; font-size: 14px; line-height: 1;
             white-space: nowrap; position: relative;
         `;
-        button.innerHTML = svgHTML;
+        button.innerHTML = filter.icon;
 
         const badge = createBadge();
         button.appendChild(badge);
+        updateButtonStyle(button, filterState[filter.id]);
 
-        button.addEventListener('click', (e) => {
-            e.preventDefault();
-            onClick();
+        button.addEventListener('click', (event) => {
+            event.preventDefault();
+            toggleFilter(filter);
         });
 
         return { button, badge };
     }
 
     function insertButtons(targetForm) {
+        if (document.getElementById(FILTER_WRAPPER_ID)) {
+            return;
+        }
+
         const wrapper = document.createElement('div');
+        wrapper.id = FILTER_WRAPPER_ID;
         wrapper.style.cssText = 'display:flex; align-items:center; margin-left:10px; flex-shrink:0; gap:6px;';
 
-        // Photo filter button (camera icon)
-        const photo = createFilterButton(
-            'Hide posts without photos',
-            `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="white">
-                <path d="M12 5c-3.86 0-7 3.14-7 7s3.14 7 7 7 7-3.14 7-7-3.14-7-7-7zm0-2c1.1 0 2 .9 2 2h3.17C18.6 5 19 5.4 19 5.83V7h1c1.1 0 2 .9 2 2v9c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V9c0-1.1.9-2 2-2h1V5.83C5 5.4 5.4 5 5.83 5H9c0-1.1.9-2 2-2zm0 5c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zm0 2c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3z"/>
-            </svg>`,
-            togglePhotoFilter
-        );
-        photoButton = photo.button;
-        photoCounter = photo.badge;
+        FILTERS.forEach(filter => {
+            filterUi[filter.id] = createFilterButton(filter);
+            wrapper.appendChild(filterUi[filter.id].button);
+        });
 
-        // Virtual filter button (monitor/indoor icon)
-        const virtual = createFilterButton(
-            'Hide virtual activities',
-            `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="white">
-                <path d="M21 2H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h7l-2 3v1h8v-1l-2-3h7c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H3V4h18v12z"/>
-            </svg>`,
-            toggleVirtualFilter
-        );
-        virtualButton = virtual.button;
-        virtualCounter = virtual.badge;
-
-        wrapper.appendChild(photoButton);
-        wrapper.appendChild(virtualButton);
         targetForm.appendChild(wrapper);
+    }
 
-        updateButtonStyle(photoButton, photoFilterEnabled);
-        updateButtonStyle(virtualButton, virtualFilterEnabled);
+    function initializeUi(targetForm) {
+        insertButtons(targetForm);
+        syncFilters();
+        startObserver();
     }
 
     function waitForFilterForm() {
-        const target = document.body;
-        const config = { childList: true, subtree: true };
+        const existingForm = document.querySelector(FILTER_FORM_SELECTOR);
+        if (existingForm) {
+            initializeUi(existingForm);
+            return;
+        }
 
         const formObserver = new MutationObserver((mutations, obs) => {
             const form = document.querySelector(FILTER_FORM_SELECTOR);
-            if (form && !document.body.contains(photoButton)) {
-                insertButtons(form);
-
-                const savedPhoto = localStorage.getItem(photoStorageKey);
-                photoFilterEnabled = savedPhoto !== 'false';
-
-                const savedVirtual = localStorage.getItem(virtualStorageKey);
-                virtualFilterEnabled = savedVirtual === 'true';
-
-                updateButtonStyle(photoButton, photoFilterEnabled);
-                updateButtonStyle(virtualButton, virtualFilterEnabled);
-                syncFilters();
-
+            if (form && !document.getElementById(FILTER_WRAPPER_ID)) {
+                initializeUi(form);
                 obs.disconnect();
             }
         });
 
-        formObserver.observe(target, config);
+        formObserver.observe(document.body, { childList: true, subtree: true });
     }
 
-    // Cleanup on page unload
     window.addEventListener('beforeunload', () => {
         if (observer) {
             observer.disconnect();
             observer = null;
-            observerActive = false;
         }
-        clearTimeout(debounceTimer);
+
+        cancelScheduledApply();
     });
 
-    // Initialize
     waitForFilterForm();
 })();
