@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Strava Dashboard - Photo Filter Toggle with Persistence
-// @version      5.4
+// @version      5.6
 // @description  Adds filter buttons to hide posts without photos and/or virtual activities on Strava Dashboard. State persists between reloads.
 // @author       https://www.strava.com/athletes/5931245
 // @match        https://www.strava.com/dashboard*
@@ -12,6 +12,7 @@
 (function() {
     'use strict';
 
+    // Configuration
     const FEED_CONTAINER_SELECTOR = '.feature-feed';
     const FEED_ENTRY_SELECTOR = 'div[id^="feed-entry-"]';
     const FILTER_FORM_SELECTOR = 'form.uRdSO2YS';
@@ -23,6 +24,7 @@
     const BUTTON_ACTIVE_COLOR = '#fc5200';
     const BUTTON_INACTIVE_COLOR = '#888';
 
+    // Filter definitions
     const FILTERS = [
         {
             id: 'photo',
@@ -40,12 +42,13 @@
             storageKey: 'stravaVirtualFilterEnabled',
             defaultEnabled: false,
             bodyClass: 'strava-hide-virtual',
-            icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="white">
-                <path d="M21 2H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h7l-2 3v1h8v-1l-2-3h7c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H3V4h18v12z"/>
+            icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" fill="none">
+                <text x="12" y="15" text-anchor="middle" font-size="9" font-weight="700" font-family="Arial, sans-serif" fill="white">VR</text>
             </svg>`
         }
     ];
 
+    // Runtime state
     let rootObserver = null;
     let feedObserver = null;
     let feedContainer = null;
@@ -57,6 +60,7 @@
         virtual: 0
     };
 
+    // Style and state helpers
     function ensureStyles() {
         if (document.getElementById(STYLE_ELEMENT_ID)) {
             return;
@@ -132,6 +136,7 @@
         syncFilterUi();
     }
 
+    // Feed entry tracking
     function isElement(node) {
         return node && node.nodeType === Node.ELEMENT_NODE;
     }
@@ -157,6 +162,7 @@
         entry.removeAttribute(VIRTUAL_ENTRY_ATTRIBUTE);
     }
 
+    // Track only the delta for entries that were added or changed, so badges stay cheap.
     function updateTrackedEntry(entry) {
         const nextState = analyzeEntry(entry);
         const previousState = trackedEntries.get(entry);
@@ -246,6 +252,7 @@
         collectClosestEntry(node, result);
     }
 
+    // Feed mutations are processed incrementally instead of rescanning the whole feed.
     function processFeedMutations(mutations) {
         const affectedEntries = new Set();
 
@@ -282,7 +289,7 @@
         feedObserver.observe(feedContainer, { childList: true, subtree: true });
     }
 
-    function syncFeedConnection() {
+    function refreshFeedContainer() {
         const nextFeedContainer = document.querySelector(FEED_CONTAINER_SELECTOR);
 
         if (nextFeedContainer === feedContainer) {
@@ -302,6 +309,7 @@
         indexFeedEntries();
     }
 
+    // UI
     function createBadge() {
         const badge = document.createElement('span');
         badge.style.cssText = `
@@ -366,13 +374,14 @@
         syncFilterUi();
     }
 
-    function ensureFilterButtons() {
+    function mountFilterButtonsIfNeeded() {
         const filterForm = document.querySelector(FILTER_FORM_SELECTOR);
         if (filterForm) {
             insertButtons(filterForm);
         }
     }
 
+    // Bootstrap
     function nodeTouchesBootstrapTargets(node) {
         if (!isElement(node)) {
             return false;
@@ -394,6 +403,7 @@
         });
     }
 
+    // Root observer only reattaches UI/feed wiring when Strava replaces major containers.
     function startRootObserver() {
         if (rootObserver) {
             return;
@@ -404,8 +414,8 @@
                 return;
             }
 
-            ensureFilterButtons();
-            syncFeedConnection();
+            mountFilterButtonsIfNeeded();
+            refreshFeedContainer();
         });
 
         rootObserver.observe(document.body, { childList: true, subtree: true });
@@ -415,8 +425,8 @@
         loadFilterState();
         ensureStyles();
         applyFilterClasses();
-        ensureFilterButtons();
-        syncFeedConnection();
+        mountFilterButtonsIfNeeded();
+        refreshFeedContainer();
         startRootObserver();
         syncFilterUi();
     }
