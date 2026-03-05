@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Strava Dashboard - Photo Filter Toggle with Persistence
-// @version      5.0
+// @version      5.1
 // @description  Adds filter buttons to hide posts without photos and/or virtual activities on Strava Dashboard. State persists between reloads.
 // @author       https://www.strava.com/athletes/5931245
 // @match        https://www.strava.com/dashboard*
@@ -11,6 +11,11 @@
 
 (function() {
     'use strict';
+
+    const FEED_ENTRY_SELECTOR = 'div[id^="feed-entry-"]';
+    const PHOTO_SELECTOR = 'div[data-testid="photo"]';
+    const VIRTUAL_TAG_SELECTOR = 'div[data-testid="tag"]';
+    const FILTER_FORM_SELECTOR = 'form.uRdSO2YS';
 
     let observer = null;
     let observerActive = false;
@@ -37,18 +42,18 @@
     }
 
     function isVirtualActivity(entry) {
-        const tag = entry.querySelector('div[data-testid="tag"]');
+        const tag = entry.querySelector(VIRTUAL_TAG_SELECTOR);
         return tag && tag.textContent.trim().toLowerCase() === 'virtual';
     }
 
     function applyFilters() {
         let photoHidden = 0;
         let virtualHidden = 0;
-        document.querySelectorAll('div[id^="feed-entry-"]').forEach(entry => {
+        document.querySelectorAll(FEED_ENTRY_SELECTOR).forEach(entry => {
             let shouldHide = false;
 
             if (photoFilterEnabled) {
-                const hasPhoto = entry.querySelector('div[data-testid="photo"]');
+                const hasPhoto = entry.querySelector(PHOTO_SELECTOR);
                 if (!hasPhoto) {
                     shouldHide = true;
                     photoHidden++;
@@ -72,16 +77,37 @@
     }
 
     function showAllPosts() {
-        document.querySelectorAll('div[id^="feed-entry-"]').forEach(entry => {
+        document.querySelectorAll(FEED_ENTRY_SELECTOR).forEach(entry => {
             entry.style.display = '';
         });
         updateBadge(photoCounter, 0);
         updateBadge(virtualCounter, 0);
     }
 
-    function getFeedContainer() {
-        const firstEntry = document.querySelector('div[id^="feed-entry-"]');
-        return firstEntry ? firstEntry.parentElement : null;
+    function isElement(node) {
+        return node && node.nodeType === Node.ELEMENT_NODE;
+    }
+
+    function nodeTouchesFeed(node) {
+        if (!isElement(node)) {
+            return false;
+        }
+
+        return node.matches(FEED_ENTRY_SELECTOR)
+            || node.matches(PHOTO_SELECTOR)
+            || node.matches(VIRTUAL_TAG_SELECTOR)
+            || !!node.querySelector(FEED_ENTRY_SELECTOR)
+            || !!node.closest(FEED_ENTRY_SELECTOR);
+    }
+
+    function mutationsTouchFeed(mutations) {
+        return mutations.some(mutation => {
+            if (nodeTouchesFeed(mutation.target)) {
+                return true;
+            }
+
+            return [...mutation.addedNodes, ...mutation.removedNodes].some(nodeTouchesFeed);
+        });
     }
 
     function anyFilterActive() {
@@ -90,10 +116,12 @@
 
     function startObserver() {
         if (!observerActive) {
-            const feedContainer = getFeedContainer();
-            const target = feedContainer || document.body;
-            observer = new MutationObserver(applyFiltersDebounced);
-            observer.observe(target, { childList: true, subtree: true });
+            observer = new MutationObserver((mutations) => {
+                if (mutationsTouchFeed(mutations)) {
+                    applyFiltersDebounced();
+                }
+            });
+            observer.observe(document.body, { childList: true, subtree: true });
             observerActive = true;
         }
     }
@@ -219,7 +247,7 @@
         const config = { childList: true, subtree: true };
 
         const formObserver = new MutationObserver((mutations, obs) => {
-            const form = document.querySelector('form.uRdSO2YS');
+            const form = document.querySelector(FILTER_FORM_SELECTOR);
             if (form && !document.body.contains(photoButton)) {
                 insertButtons(form);
 

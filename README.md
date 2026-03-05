@@ -18,7 +18,7 @@ Hide feed posts without photos and/or virtual activities (Zwift, indoor trainers
 - Both filters work **independently** — enable one, both, or none
 - **Hidden posts counter** — each button shows a red badge with the number of hidden posts
 - **Persistent state** — remembers your filter settings after page reloads
-- **Performance optimized** — debounced DOM observation scoped to the feed container
+- **Performance optimized** — debounced DOM observation that reacts only to feed-related changes
 - Works with **infinite scroll** and dynamically loaded feed items
 
 ---
