@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         Strava Dashboard - Photo Filter Toggle with Persistence
-// @version      5.8
-// @description  Adds filter buttons to hide posts without photos and/or virtual activities on Strava Dashboard. State persists between reloads.
+// @name         Strava Feed Filters
+// @version      5.9
+// @description  Hide posts without photos and virtual activities in your Strava feed.
 // @author       https://www.strava.com/athletes/5931245
 // @match        https://www.strava.com/dashboard*
 // @grant        none
