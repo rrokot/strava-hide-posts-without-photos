@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Strava Feed Filters
-// @version      5.9
-// @description  Hide posts without photos and virtual activities in your Strava feed.
+// @version      5.10
+// @description  Hide posts without photos or videos and virtual activities in your Strava feed.
 // @author       https://www.strava.com/athletes/5931245
 // @match        https://www.strava.com/dashboard*
 // @grant        none
@@ -19,7 +19,7 @@
     const FILTER_FORM_SELECTOR = 'form.uRdSO2YS';
     const FILTER_WRAPPER_ID = 'strava-feed-filter-toggles';
     const STYLE_ELEMENT_ID = 'strava-feed-filter-styles';
-    const PHOTO_SELECTOR = '[data-testid="photo"]';
+    const MEDIA_SELECTOR = '[data-testid="photo"], [data-testid="video"]';
     const VIRTUAL_TAG_SELECTOR = 'div[data-testid="tag"]';
     const VIRTUAL_ENTRY_ATTRIBUTE = 'data-strava-virtual-entry';
     const BUTTON_ACTIVE_COLOR = '#fc5200';
@@ -29,7 +29,7 @@
     const FILTERS = [
         {
             id: 'photo',
-            title: 'Hide posts without photos',
+            title: 'Hide posts without photos or videos',
             storageKey: 'stravaPhotoFilterEnabled',
             defaultEnabled: true,
             bodyClass: 'strava-hide-no-photo',
@@ -70,7 +70,7 @@
         const style = document.createElement('style');
         style.id = STYLE_ELEMENT_ID;
         style.textContent = `
-            body.${getFilterConfig('photo').bodyClass} ${FEED_CONTAINER_SELECTOR} ${FEED_ENTRY_SELECTOR}:not(:has(${PHOTO_SELECTOR})) {
+            body.${getFilterConfig('photo').bodyClass} ${FEED_CONTAINER_SELECTOR} ${FEED_ENTRY_SELECTOR}:not(:has(${MEDIA_SELECTOR})) {
                 display: none !important;
             }
 
@@ -149,7 +149,7 @@
 
     function analyzeEntry(entry) {
         return {
-            hasPhoto: !!entry.querySelector(PHOTO_SELECTOR),
+            hasMedia: !!entry.querySelector(MEDIA_SELECTOR),
             isVirtual: isVirtualActivity(entry)
         };
     }
@@ -169,15 +169,15 @@
         const previousState = trackedEntries.get(entry);
 
         if (!previousState) {
-            if (!nextState.hasPhoto) {
+            if (!nextState.hasMedia) {
                 hiddenCounts.photo += 1;
             }
             if (nextState.isVirtual) {
                 hiddenCounts.virtual += 1;
             }
         } else {
-            if (previousState.hasPhoto !== nextState.hasPhoto) {
-                hiddenCounts.photo += nextState.hasPhoto ? -1 : 1;
+            if (previousState.hasMedia !== nextState.hasMedia) {
+                hiddenCounts.photo += nextState.hasMedia ? -1 : 1;
             }
             if (previousState.isVirtual !== nextState.isVirtual) {
                 hiddenCounts.virtual += nextState.isVirtual ? 1 : -1;
@@ -194,7 +194,7 @@
             return;
         }
 
-        if (!previousState.hasPhoto) {
+        if (!previousState.hasMedia) {
             hiddenCounts.photo = Math.max(0, hiddenCounts.photo - 1);
         }
         if (previousState.isVirtual) {

@@ -1,6 +1,6 @@
 # Strava Feed Filters
 
-Tampermonkey userscript for Strava that hides posts without photos and virtual activities.
+Tampermonkey userscript for Strava that hides posts without photos or videos and virtual activities.
 
 ![Screenshot](./Screenshot.png)
 
