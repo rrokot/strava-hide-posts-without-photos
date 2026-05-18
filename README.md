@@ -6,7 +6,7 @@ Tampermonkey userscript for Strava that hides posts without photos or videos, vi
 
 ## Controls
 
-The buttons next to the feed selector toggle each filter. Orange means enabled, gray means disabled. The camera hides posts without photos or videos, `VR` hides virtual activities, and the heart hides posts you already liked. Badges show how many matching posts are hidden.
+Camera hides posts without media, `VR` hides virtual activities, heart hides posts you liked. Orange is on; badges show hidden counts.
 
 ## Installation
 
