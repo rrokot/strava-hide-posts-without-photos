@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Strava Feed Filters
-// @version      5.17
+// @version      5.18
 // @description  Hide posts without photos or videos, virtual activities, and posts you already liked in your Strava feed.
 // @author       https://www.strava.com/athletes/5931245
 // @match        https://www.strava.com/dashboard*
@@ -22,11 +22,14 @@
     const STYLE_ELEMENT_ID = 'strava-feed-filter-styles';
     const MEDIA_SELECTOR = '[data-testid="photo"], [data-testid="video"]';
     const VIRTUAL_TAG_SELECTOR = 'div[data-testid="tag"]';
+    const ACTIVITY_ICON_TITLE_SELECTOR = '[data-testid="activity-icon"] title';
+    const DEVICE_SELECTOR = '[data-testid="device"]';
     const KUDOS_BUTTON_SELECTOR = '[data-testid="kudos_button"]';
     const VIRTUAL_ENTRY_ATTRIBUTE = 'data-strava-virtual-entry';
     const LIKED_ENTRY_ATTRIBUTE = 'data-strava-liked-entry';
     const BUTTON_ACTIVE_COLOR = '#fc5200';
     const BUTTON_INACTIVE_COLOR = '#888';
+    const VIRTUAL_DEVICE_NAMES = ['rouvy', 'zwift', 'trainerroad', 'bkool', 'fulgaz', 'mywhoosh', 'wahoo rgt'];
 
     // Filter definitions
     const FILTERS = [
@@ -161,8 +164,18 @@
     }
 
     function isVirtualActivity(entry) {
+        const activityIconTitle = normalizeText(entry.querySelector(ACTIVITY_ICON_TITLE_SELECTOR)?.textContent);
+        if (activityIconTitle.includes('virtual')) {
+            return true;
+        }
+
         const tag = entry.querySelector(VIRTUAL_TAG_SELECTOR);
-        return !!tag && tag.textContent.trim().toLowerCase() === 'virtual';
+        if (normalizeText(tag?.textContent) === 'virtual') {
+            return true;
+        }
+
+        const device = normalizeText(entry.querySelector(DEVICE_SELECTOR)?.textContent);
+        return VIRTUAL_DEVICE_NAMES.some(name => device.includes(name));
     }
 
     function normalizeText(value) {
