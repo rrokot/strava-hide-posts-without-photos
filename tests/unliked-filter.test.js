@@ -1,0 +1,113 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+
+const scriptPath = path.join(__dirname, '..', 'strava-photo-filter-toggle.user.js');
+
+function readScript() {
+    return fs.readFileSync(scriptPath, 'utf8');
+}
+
+test('userscript has no unresolved merge conflict markers', () => {
+    const source = readScript();
+
+    assert.equal(source.includes('<<<<<<<'), false);
+    assert.equal(source.includes('======='), false);
+    assert.equal(source.includes('>>>>>>>'), false);
+});
+
+class FakeElement {
+    constructor({ selectors = {}, textContent = '', attributes = {}, classes = [] } = {}) {
+        this.nodeType = 1;
+        this.textContent = textContent;
+        this.attributes = new Map(Object.entries(attributes));
+        this.classList = {
+            contains: (name) => classes.includes(name)
+        };
+        this.selectors = selectors;
+    }
+
+    querySelector(selector) {
+        return this.selectors[selector] || null;
+    }
+
+    querySelectorAll() {
+        return [];
+    }
+
+    getAttribute(name) {
+        return this.attributes.has(name) ? this.attributes.get(name) : null;
+    }
+
+    setAttribute(name, value) {
+        this.attributes.set(name, String(value));
+    }
+
+    removeAttribute(name) {
+        this.attributes.delete(name);
+    }
+}
+
+function loadTestApi() {
+    const body = new FakeElement();
+    body.classList = { toggle() {}, contains() { return false; } };
+    const document = {
+        body,
+        head: { appendChild() {} },
+        createElement: () => new FakeElement(),
+        getElementById: () => null,
+        querySelector: () => null
+    };
+    const window = {
+        __STRAVA_FEED_FILTERS_TEST__: true,
+        addEventListener() {}
+    };
+
+    vm.runInNewContext(readScript(), {
+        document,
+        window,
+        localStorage: { getItem: () => null, setItem() {} },
+        MutationObserver: class { observe() {} disconnect() {} },
+        Node: { ELEMENT_NODE: 1 },
+        console
+    });
+
+    return window.__stravaFeedFiltersTestApi;
+}
+
+test('analyzeEntry marks entries liked by me from pressed kudos button state', () => {
+    const api = loadTestApi();
+    const kudosButton = new FakeElement({
+        attributes: {
+            'aria-pressed': 'true',
+            'aria-label': 'Kudos'
+        }
+    });
+    const entry = new FakeElement({
+        selectors: {
+            '[data-testid="photo"], [data-testid="video"]': new FakeElement(),
+            '[data-testid="kudos_button"], button[aria-label*="Kudos"], button[title*="Kudos"]': kudosButton
+        }
+    });
+
+    assert.equal(api.analyzeEntry(entry).likedByMe, true);
+});
+
+test('analyzeEntry keeps unliked entries visible when kudos button is not pressed', () => {
+    const api = loadTestApi();
+    const kudosButton = new FakeElement({
+        attributes: {
+            'aria-pressed': 'false',
+            'aria-label': 'Give Kudos'
+        }
+    });
+    const entry = new FakeElement({
+        selectors: {
+            '[data-testid="kudos_button"], button[aria-label*="Kudos"], button[title*="Kudos"]': kudosButton
+        }
+    });
+
+    assert.equal(api.analyzeEntry(entry).likedByMe, false);
+});

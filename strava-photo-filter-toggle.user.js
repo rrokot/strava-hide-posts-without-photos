@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Strava Feed Filters
-// @version      5.10
-// @description  Hide posts without photos or videos and virtual activities in your Strava feed.
+// @version      5.11
+// @description  Hide posts without photos or videos, virtual activities, and posts you already liked in your Strava feed.
 // @author       https://www.strava.com/athletes/5931245
 // @match        https://www.strava.com/dashboard*
 // @grant        none
@@ -21,7 +21,9 @@
     const STYLE_ELEMENT_ID = 'strava-feed-filter-styles';
     const MEDIA_SELECTOR = '[data-testid="photo"], [data-testid="video"]';
     const VIRTUAL_TAG_SELECTOR = 'div[data-testid="tag"]';
+    const KUDOS_BUTTON_SELECTOR = '[data-testid="kudos_button"], button[aria-label*="Kudos"], button[title*="Kudos"]';
     const VIRTUAL_ENTRY_ATTRIBUTE = 'data-strava-virtual-entry';
+    const LIKED_ENTRY_ATTRIBUTE = 'data-strava-liked-entry';
     const BUTTON_ACTIVE_COLOR = '#fc5200';
     const BUTTON_INACTIVE_COLOR = '#888';
 
@@ -46,6 +48,16 @@
             icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" fill="none">
                 <text x="12" y="15" text-anchor="middle" font-size="9" font-weight="700" font-family="Arial, sans-serif" fill="white">VR</text>
             </svg>`
+        },
+        {
+            id: 'unliked',
+            title: 'Show posts I have not liked yet',
+            storageKey: 'stravaUnlikedFilterEnabled',
+            defaultEnabled: false,
+            bodyClass: 'strava-show-unliked',
+            icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="17" height="17" fill="white">
+                <path d="M12.1 21.35l-1.1-1C5.4 15.24 2 12.14 2 8.35 2 5.25 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.08C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.25 22 8.35c0 3.79-3.4 6.89-9 12l-.9 1zM7.5 5C5.56 5 4 6.43 4 8.35c0 2.74 2.54 5.16 8 10.13 5.46-4.97 8-7.39 8-10.13C20 6.43 18.44 5 16.5 5c-1.54 0-3.04.99-3.57 2.36h-1.86C10.54 5.99 9.04 5 7.5 5z"/>
+            </svg>`
         }
     ];
 
@@ -58,7 +70,8 @@
     const trackedEntries = new Map();
     const hiddenCounts = {
         photo: 0,
-        virtual: 0
+        virtual: 0,
+        unliked: 0
     };
 
     // Style and state helpers
@@ -75,6 +88,10 @@
             }
 
             body.${getFilterConfig('virtual').bodyClass} ${FEED_CONTAINER_SELECTOR} ${FEED_ENTRY_SELECTOR}[${VIRTUAL_ENTRY_ATTRIBUTE}="true"] {
+                display: none !important;
+            }
+
+            body.${getFilterConfig('unliked').bodyClass} ${FEED_CONTAINER_SELECTOR} ${FEED_ENTRY_SELECTOR}[${LIKED_ENTRY_ATTRIBUTE}="true"] {
                 display: none !important;
             }
         `;
@@ -147,10 +164,31 @@
         return !!tag && tag.textContent.trim().toLowerCase() === 'virtual';
     }
 
+    function normalizeText(value) {
+        return (value || '').trim().toLowerCase();
+    }
+
+    function isPressed(button) {
+        return normalizeText(button.getAttribute('aria-pressed')) === 'true'
+            || normalizeText(button.getAttribute('aria-checked')) === 'true'
+            || button.classList.contains('active')
+            || button.classList.contains('selected');
+    }
+
+    function isLikedByMe(entry) {
+        const kudosButton = entry.querySelector(KUDOS_BUTTON_SELECTOR);
+        if (!kudosButton) {
+            return false;
+        }
+
+        return isPressed(kudosButton);
+    }
+
     function analyzeEntry(entry) {
         return {
             hasMedia: !!entry.querySelector(MEDIA_SELECTOR),
-            isVirtual: isVirtualActivity(entry)
+            isVirtual: isVirtualActivity(entry),
+            likedByMe: isLikedByMe(entry)
         };
     }
 
@@ -161,6 +199,15 @@
         }
 
         entry.removeAttribute(VIRTUAL_ENTRY_ATTRIBUTE);
+    }
+
+    function setLikedEntryAttribute(entry, likedByMe) {
+        if (likedByMe) {
+            entry.setAttribute(LIKED_ENTRY_ATTRIBUTE, 'true');
+            return;
+        }
+
+        entry.removeAttribute(LIKED_ENTRY_ATTRIBUTE);
     }
 
     // Track only the delta for entries that were added or changed, so badges stay cheap.
@@ -175,6 +222,9 @@
             if (nextState.isVirtual) {
                 hiddenCounts.virtual += 1;
             }
+            if (nextState.likedByMe) {
+                hiddenCounts.unliked += 1;
+            }
         } else {
             if (previousState.hasMedia !== nextState.hasMedia) {
                 hiddenCounts.photo += nextState.hasMedia ? -1 : 1;
@@ -182,10 +232,14 @@
             if (previousState.isVirtual !== nextState.isVirtual) {
                 hiddenCounts.virtual += nextState.isVirtual ? 1 : -1;
             }
+            if (previousState.likedByMe !== nextState.likedByMe) {
+                hiddenCounts.unliked += nextState.likedByMe ? 1 : -1;
+            }
         }
 
         trackedEntries.set(entry, nextState);
         setVirtualEntryAttribute(entry, nextState.isVirtual);
+        setLikedEntryAttribute(entry, nextState.likedByMe);
     }
 
     function removeTrackedEntry(entry) {
@@ -200,18 +254,24 @@
         if (previousState.isVirtual) {
             hiddenCounts.virtual = Math.max(0, hiddenCounts.virtual - 1);
         }
+        if (previousState.likedByMe) {
+            hiddenCounts.unliked = Math.max(0, hiddenCounts.unliked - 1);
+        }
 
         trackedEntries.delete(entry);
         entry.removeAttribute(VIRTUAL_ENTRY_ATTRIBUTE);
+        entry.removeAttribute(LIKED_ENTRY_ATTRIBUTE);
     }
 
     function clearTrackedEntries() {
         trackedEntries.forEach((_, entry) => {
             entry.removeAttribute(VIRTUAL_ENTRY_ATTRIBUTE);
+            entry.removeAttribute(LIKED_ENTRY_ATTRIBUTE);
         });
         trackedEntries.clear();
         hiddenCounts.photo = 0;
         hiddenCounts.virtual = 0;
+        hiddenCounts.unliked = 0;
     }
 
     function indexFeedEntries() {
@@ -440,6 +500,14 @@
             rootObserver = null;
         }
     });
+
+    if (window.__STRAVA_FEED_FILTERS_TEST__) {
+        window.__stravaFeedFiltersTestApi = {
+            analyzeEntry,
+            isLikedByMe
+        };
+        return;
+    }
 
     initialize();
 })();
