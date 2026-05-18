@@ -6,7 +6,11 @@ Tampermonkey userscript for Strava that hides posts without photos or videos, vi
 
 ## Controls
 
-Camera hides posts without media, `VR` hides virtual activities, heart hides posts you liked. Orange is on; badges show hidden counts.
+- Camera: hides posts without photos or videos
+- `VR`: hides virtual activities
+- Heart: hides posts you already liked
+
+Orange is on; badges show hidden counts.
 
 ## Installation
 
