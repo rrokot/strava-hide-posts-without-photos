@@ -156,3 +156,10 @@ test('analyzeEntry hides entries whose kudos button no longer offers Give kudos'
 
     assert.equal(api.analyzeEntry(entry).likedByMe, true);
 });
+
+test('analyzeEntry hides entries without a kudos button', () => {
+    const api = loadTestApi();
+    const entry = new FakeElement();
+
+    assert.equal(api.analyzeEntry(entry).likedByMe, true);
+});
