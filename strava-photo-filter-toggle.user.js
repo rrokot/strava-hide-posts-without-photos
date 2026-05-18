@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Strava Feed Filters
-// @version      5.19
+// @version      5.20
 // @description  Hide posts without photos or videos, virtual activities, and posts you already liked in your Strava feed.
 // @author       https://www.strava.com/athletes/5931245
 // @match        https://www.strava.com/dashboard*
@@ -16,7 +16,7 @@
     // Configuration
     const FEED_CONTAINER_SELECTOR = '.feature-feed';
     const FEED_ENTRY_SELECTOR = 'div[id^="feed-entry-"]';
-    const FILTER_FORM_SELECTOR = 'form.uRdSO2YS';
+    const FEED_FILTER_INPUT_SELECTOR = 'input#feedFilter[name="feedFilter"]';
     const FILTER_WRAPPER_ID = 'strava-feed-filter-toggles';
     const FILTER_CONTROL_ROW_ID = 'strava-feed-filter-controls-row';
     const STYLE_ELEMENT_ID = 'strava-feed-filter-styles';
@@ -463,8 +463,12 @@
         syncFilterUi();
     }
 
+    function findFilterForm() {
+        return document.querySelector(FEED_FILTER_INPUT_SELECTOR)?.closest('form') || null;
+    }
+
     function mountFilterButtonsIfNeeded() {
-        const filterForm = document.querySelector(FILTER_FORM_SELECTOR);
+        const filterForm = findFilterForm();
         if (filterForm) {
             insertButtons(filterForm);
         }
@@ -476,9 +480,9 @@
             return false;
         }
 
-        return node.matches(FILTER_FORM_SELECTOR)
+        return node.matches(FEED_FILTER_INPUT_SELECTOR)
             || node.matches(FEED_CONTAINER_SELECTOR)
-            || !!node.querySelector(FILTER_FORM_SELECTOR)
+            || !!node.querySelector(FEED_FILTER_INPUT_SELECTOR)
             || !!node.querySelector(FEED_CONTAINER_SELECTOR);
     }
 
