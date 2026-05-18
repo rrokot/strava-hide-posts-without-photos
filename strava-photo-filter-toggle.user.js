@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Strava Feed Filters
-// @version      5.13
+// @version      5.14
 // @description  Hide posts without photos or videos, virtual activities, and posts you already liked in your Strava feed.
 // @author       https://www.strava.com/athletes/5931245
 // @match        https://www.strava.com/dashboard*
@@ -21,7 +21,7 @@
     const STYLE_ELEMENT_ID = 'strava-feed-filter-styles';
     const MEDIA_SELECTOR = '[data-testid="photo"], [data-testid="video"]';
     const VIRTUAL_TAG_SELECTOR = 'div[data-testid="tag"]';
-    const KUDOS_BUTTON_SELECTOR = '[data-testid="kudos_button"], button[aria-label*="kudos" i], button[title*="kudos" i], button:has(svg[data-testid$="_kudos"])';
+    const KUDOS_BUTTON_SELECTOR = '[data-testid="kudos_button"]';
     const VIRTUAL_ENTRY_ATTRIBUTE = 'data-strava-virtual-entry';
     const LIKED_ENTRY_ATTRIBUTE = 'data-strava-liked-entry';
     const BUTTON_ACTIVE_COLOR = '#fc5200';
@@ -186,13 +186,21 @@
             || !!button.querySelector('svg[data-testid="unfilled_kudos"]');
     }
 
+    function isFilledKudosButton(button) {
+        const title = normalizeText(button.getAttribute('title'));
+
+        return title.includes('view all kudos')
+            || title.includes('view kudos')
+            || !!button.querySelector('svg[data-testid="filled_kudos"]');
+    }
+
     function isLikedByMe(entry) {
         const kudosButton = entry.querySelector(KUDOS_BUTTON_SELECTOR);
         if (!kudosButton) {
-            return true;
+            return false;
         }
 
-        return isPressed(kudosButton) || !isGiveKudosButton(kudosButton);
+        return isPressed(kudosButton) || isFilledKudosButton(kudosButton) || !isGiveKudosButton(kudosButton);
     }
 
     function analyzeEntry(entry) {

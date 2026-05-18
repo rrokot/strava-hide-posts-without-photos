@@ -134,7 +134,7 @@ test('analyzeEntry keeps entries with a Give kudos button visible', () => {
     });
     const entry = new FakeElement({
         selectors: {
-            'button[title*="kudos" i]': kudosButton
+            '[data-testid="kudos_button"]': kudosButton
         }
     });
 
@@ -150,16 +150,56 @@ test('analyzeEntry hides entries whose kudos button no longer offers Give kudos'
     });
     const entry = new FakeElement({
         selectors: {
-            'button[title*="kudos" i]': kudosButton
+            '[data-testid="kudos_button"]': kudosButton
         }
     });
 
     assert.equal(api.analyzeEntry(entry).likedByMe, true);
 });
 
-test('analyzeEntry hides entries without a kudos button', () => {
+test('analyzeEntry hides entries with Strava filled kudos button', () => {
+    const api = loadTestApi();
+    const kudosButton = new FakeElement({
+        attributes: {
+            title: 'View all kudos',
+            'data-testid': 'kudos_button'
+        },
+        selectors: {
+            'svg[data-testid="filled_kudos"]': new FakeElement()
+        }
+    });
+    const entry = new FakeElement({
+        selectors: {
+            '[data-testid="kudos_button"]': kudosButton
+        }
+    });
+
+    assert.equal(api.analyzeEntry(entry).likedByMe, true);
+});
+
+test('analyzeEntry keeps entries with Strava unfilled kudos button visible', () => {
+    const api = loadTestApi();
+    const kudosButton = new FakeElement({
+        attributes: {
+            title: 'Give kudos',
+            'data-testid': 'kudos_button'
+        },
+        selectors: {
+            'svg[data-testid="unfilled_kudos"]': new FakeElement()
+        }
+    });
+    const entry = new FakeElement({
+        selectors: {
+            '[data-testid="kudos_button"]': kudosButton
+        }
+    });
+
+    assert.equal(api.analyzeEntry(entry).likedByMe, false);
+});
+
+test('analyzeEntry does not assume entries without a kudos button are liked', () => {
     const api = loadTestApi();
     const entry = new FakeElement();
 
-    assert.equal(api.analyzeEntry(entry).likedByMe, true);
+    assert.equal(api.analyzeEntry(entry).likedByMe, false);
 });
