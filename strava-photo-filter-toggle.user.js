@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Strava Feed Filters
-// @version      5.21
+// @version      5.22
 // @description  Hide posts without photos or videos, virtual activities, and posts you already liked in your Strava feed.
 // @author       https://www.strava.com/athletes/5931245
 // @match        https://www.strava.com/dashboard*
@@ -15,7 +15,7 @@
 
     // Configuration
     const FEED_CONTAINER_SELECTOR = '.feature-feed';
-    const FEED_ENTRY_SELECTOR = 'div[id^="feed-entry-"]';
+    const FEED_ENTRY_SELECTOR = '[data-testid="web-feed-entry"]';
     const FEED_FILTER_INPUT_ID = 'feedFilter';
     const FILTER_WRAPPER_ID = 'strava-feed-filter-toggles';
     const FILTER_CONTROL_ROW_ID = 'strava-feed-filter-controls-row';
