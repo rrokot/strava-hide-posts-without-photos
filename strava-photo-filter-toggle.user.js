@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Strava Feed Filters
-// @version      5.15
+// @version      5.16
 // @description  Hide posts without photos or videos, virtual activities, and posts you already liked in your Strava feed.
 // @author       https://www.strava.com/athletes/5931245
 // @match        https://www.strava.com/dashboard*
@@ -18,6 +18,7 @@
     const FEED_ENTRY_SELECTOR = 'div[id^="feed-entry-"]';
     const FILTER_FORM_SELECTOR = 'form.uRdSO2YS';
     const FILTER_WRAPPER_ID = 'strava-feed-filter-toggles';
+    const FILTER_CONTROL_ROW_ID = 'strava-feed-filter-controls-row';
     const STYLE_ELEMENT_ID = 'strava-feed-filter-styles';
     const MEDIA_SELECTOR = '[data-testid="photo"], [data-testid="video"]';
     const VIRTUAL_TAG_SELECTOR = 'div[data-testid="tag"]';
@@ -444,14 +445,21 @@
 
         const wrapper = document.createElement('div');
         wrapper.id = FILTER_WRAPPER_ID;
-        wrapper.style.cssText = 'display:flex; align-items:center; margin-left:10px; flex-shrink:0; gap:5px;';
+        wrapper.style.cssText = 'display:flex; align-items:center; flex-shrink:0; gap:5px;';
 
         FILTERS.forEach(filter => {
             filterUi[filter.id] = createFilterButton(filter);
             wrapper.appendChild(filterUi[filter.id].button);
         });
 
-        targetForm.parentNode.insertBefore(wrapper, targetForm.nextSibling);
+        const controlsRow = document.createElement('div');
+        controlsRow.id = FILTER_CONTROL_ROW_ID;
+        controlsRow.style.cssText = 'display:flex; align-items:center; flex-wrap:nowrap; gap:10px; width:max-content; max-width:100%;';
+        targetForm.style.flexShrink = '0';
+
+        targetForm.parentNode.insertBefore(controlsRow, targetForm);
+        controlsRow.appendChild(targetForm);
+        controlsRow.appendChild(wrapper);
         syncFilterUi();
     }
 

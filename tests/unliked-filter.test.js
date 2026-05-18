@@ -24,11 +24,20 @@ test('filter buttons are explicit non-submit buttons', () => {
     assert.match(source, /button\.type\s*=\s*['"]button['"]/);
 });
 
-test('filter wrapper is inserted next to the Strava filter form', () => {
+test('filter wrapper stays outside the Strava filter form', () => {
     const source = readScript();
 
     assert.equal(source.includes('targetForm.appendChild(wrapper)'), false);
-    assert.match(source, /targetForm\.parentNode\.insertBefore\(wrapper,\s*targetForm\.nextSibling\)/);
+    assert.equal(source.includes('targetForm.parentNode.insertBefore(wrapper'), false);
+});
+
+test('filter controls keep the Strava form and buttons in one row', () => {
+    const source = readScript();
+
+    assert.match(source, /FILTER_CONTROL_ROW_ID/);
+    assert.match(source, /controlsRow\.appendChild\(targetForm\)/);
+    assert.match(source, /controlsRow\.appendChild\(wrapper\)/);
+    assert.equal(source.includes('targetForm.appendChild(wrapper)'), false);
 });
 
 class FakeElement {
