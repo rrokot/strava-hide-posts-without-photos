@@ -24,6 +24,13 @@ test('filter buttons are explicit non-submit buttons', () => {
     assert.match(source, /button\.type\s*=\s*['"]button['"]/);
 });
 
+test('filter wrapper is inserted next to the Strava filter form', () => {
+    const source = readScript();
+
+    assert.equal(source.includes('targetForm.appendChild(wrapper)'), false);
+    assert.match(source, /targetForm\.parentNode\.insertBefore\(wrapper,\s*targetForm\.nextSibling\)/);
+});
+
 class FakeElement {
     constructor({ selectors = {}, textContent = '', attributes = {}, classes = [] } = {}) {
         this.nodeType = 1;
