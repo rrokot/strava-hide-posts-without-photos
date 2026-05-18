@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Strava Feed Filters
-// @version      5.11
+// @version      5.12
 // @description  Hide posts without photos or videos, virtual activities, and posts you already liked in your Strava feed.
 // @author       https://www.strava.com/athletes/5931245
 // @match        https://www.strava.com/dashboard*
@@ -21,7 +21,7 @@
     const STYLE_ELEMENT_ID = 'strava-feed-filter-styles';
     const MEDIA_SELECTOR = '[data-testid="photo"], [data-testid="video"]';
     const VIRTUAL_TAG_SELECTOR = 'div[data-testid="tag"]';
-    const KUDOS_BUTTON_SELECTOR = '[data-testid="kudos_button"], button[aria-label*="Kudos"], button[title*="Kudos"]';
+    const KUDOS_BUTTON_SELECTOR = '[data-testid="kudos_button"], button[aria-label*="kudos" i], button[title*="kudos" i], button:has(svg[data-testid$="_kudos"])';
     const VIRTUAL_ENTRY_ATTRIBUTE = 'data-strava-virtual-entry';
     const LIKED_ENTRY_ATTRIBUTE = 'data-strava-liked-entry';
     const BUTTON_ACTIVE_COLOR = '#fc5200';
@@ -175,13 +175,24 @@
             || button.classList.contains('selected');
     }
 
+    function isGiveKudosButton(button) {
+        const label = normalizeText(button.getAttribute('aria-label'));
+        const title = normalizeText(button.getAttribute('title'));
+        const buttonText = normalizeText(button.textContent);
+
+        return label.includes('give kudos')
+            || title.includes('give kudos')
+            || buttonText.includes('give kudos')
+            || !!button.querySelector('svg[data-testid="unfilled_kudos"]');
+    }
+
     function isLikedByMe(entry) {
         const kudosButton = entry.querySelector(KUDOS_BUTTON_SELECTOR);
         if (!kudosButton) {
             return false;
         }
 
-        return isPressed(kudosButton);
+        return isPressed(kudosButton) || !isGiveKudosButton(kudosButton);
     }
 
     function analyzeEntry(entry) {
@@ -395,6 +406,7 @@
 
     function createFilterButton(filter) {
         const button = document.createElement('button');
+        button.type = 'button';
         button.title = filter.title;
         button.style.cssText = `
             width: 32px; height: 32px; padding: 4px;

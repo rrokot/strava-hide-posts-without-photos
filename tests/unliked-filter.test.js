@@ -18,6 +18,12 @@ test('userscript has no unresolved merge conflict markers', () => {
     assert.equal(source.includes('>>>>>>>'), false);
 });
 
+test('filter buttons are explicit non-submit buttons', () => {
+    const source = readScript();
+
+    assert.match(source, /button\.type\s*=\s*['"]button['"]/);
+});
+
 class FakeElement {
     constructor({ selectors = {}, textContent = '', attributes = {}, classes = [] } = {}) {
         this.nodeType = 1;
@@ -30,6 +36,13 @@ class FakeElement {
     }
 
     querySelector(selector) {
+        const selectors = selector.split(',').map((part) => part.trim());
+        for (const selectorPart of selectors) {
+            if (this.selectors[selectorPart]) {
+                return this.selectors[selectorPart];
+            }
+        }
+
         return this.selectors[selector] || null;
     }
 
@@ -88,7 +101,7 @@ test('analyzeEntry marks entries liked by me from pressed kudos button state', (
     const entry = new FakeElement({
         selectors: {
             '[data-testid="photo"], [data-testid="video"]': new FakeElement(),
-            '[data-testid="kudos_button"], button[aria-label*="Kudos"], button[title*="Kudos"]': kudosButton
+            '[data-testid="kudos_button"]': kudosButton
         }
     });
 
@@ -105,9 +118,41 @@ test('analyzeEntry keeps unliked entries visible when kudos button is not presse
     });
     const entry = new FakeElement({
         selectors: {
-            '[data-testid="kudos_button"], button[aria-label*="Kudos"], button[title*="Kudos"]': kudosButton
+            '[data-testid="kudos_button"]': kudosButton
         }
     });
 
     assert.equal(api.analyzeEntry(entry).likedByMe, false);
+});
+
+test('analyzeEntry keeps entries with a Give kudos button visible', () => {
+    const api = loadTestApi();
+    const kudosButton = new FakeElement({
+        attributes: {
+            title: 'Give kudos'
+        }
+    });
+    const entry = new FakeElement({
+        selectors: {
+            'button[title*="kudos" i]': kudosButton
+        }
+    });
+
+    assert.equal(api.analyzeEntry(entry).likedByMe, false);
+});
+
+test('analyzeEntry hides entries whose kudos button no longer offers Give kudos', () => {
+    const api = loadTestApi();
+    const kudosButton = new FakeElement({
+        attributes: {
+            title: 'View kudos'
+        }
+    });
+    const entry = new FakeElement({
+        selectors: {
+            'button[title*="kudos" i]': kudosButton
+        }
+    });
+
+    assert.equal(api.analyzeEntry(entry).likedByMe, true);
 });
