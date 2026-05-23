@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Strava Feed Filters
-// @version      5.23
+// @version      5.25
 // @description  Hide posts without photos or videos, virtual activities, and posts you already liked in your Strava feed.
 // @author       https://www.strava.com/athletes/5931245
 // @match        https://www.strava.com/dashboard*
@@ -22,7 +22,7 @@
     const STYLE_ELEMENT_ID = 'strava-feed-filter-styles';
     const MEDIA_SELECTOR = '[data-testid="photo"], [data-testid="video"]';
     const ACTIVITY_ICON_TITLE_SELECTOR = '[data-testid="activity-icon"] title';
-    const KUDOS_BUTTON_SELECTOR = '[data-testid="kudos_button"]';
+    const UNFILLED_KUDOS_SELECTOR = 'svg[data-testid="unfilled_kudos"]';
     const VIRTUAL_ENTRY_ATTRIBUTE = 'data-strava-virtual-entry';
     const LIKED_ENTRY_ATTRIBUTE = 'data-strava-liked-entry';
     const BUTTON_ACTIVE_COLOR = '#fc5200';
@@ -127,19 +127,7 @@
     // Own activities expose a "View Kudos" button, which the liked-detection treats
     // as liked — so the unliked filter would hide every entry on the My Activity feed.
     function isMyActivitiesFeedSelected() {
-        const filterInput = document.getElementById(FEED_FILTER_INPUT_ID);
-        if (!filterInput) {
-            return false;
-        }
-
-        const selectedLabel = filterInput.tagName === 'SELECT'
-            ? filterInput.options[filterInput.selectedIndex]?.textContent
-            : filterInput.value;
-        const label = normalizeText(selectedLabel);
-
-        return label.includes('my activity')
-            || label.includes('my activities')
-            || label.includes('my_activity');
+        return new URLSearchParams(window.location.search).get('feed_type') === 'my_activity';
     }
 
     function isFilterApplicable(filter) {
@@ -197,39 +185,8 @@
         return (value || '').trim().toLowerCase();
     }
 
-    function isPressed(button) {
-        return normalizeText(button.getAttribute('aria-pressed')) === 'true'
-            || normalizeText(button.getAttribute('aria-checked')) === 'true'
-            || button.classList.contains('active')
-            || button.classList.contains('selected');
-    }
-
-    function isGiveKudosButton(button) {
-        const label = normalizeText(button.getAttribute('aria-label'));
-        const title = normalizeText(button.getAttribute('title'));
-        const buttonText = normalizeText(button.textContent);
-
-        return label.includes('give kudos')
-            || title.includes('give kudos')
-            || buttonText.includes('give kudos')
-            || !!button.querySelector('svg[data-testid="unfilled_kudos"]');
-    }
-
-    function isFilledKudosButton(button) {
-        const title = normalizeText(button.getAttribute('title'));
-
-        return title.includes('view all kudos')
-            || title.includes('view kudos')
-            || !!button.querySelector('svg[data-testid="filled_kudos"]');
-    }
-
     function isLikedByMe(entry) {
-        const kudosButton = entry.querySelector(KUDOS_BUTTON_SELECTOR);
-        if (!kudosButton) {
-            return false;
-        }
-
-        return isPressed(kudosButton) || isFilledKudosButton(kudosButton) || !isGiveKudosButton(kudosButton);
+        return !entry.querySelector(UNFILLED_KUDOS_SELECTOR);
     }
 
     function analyzeEntry(entry) {
@@ -544,10 +501,32 @@
         rootObserver.observe(document.body, { childList: true, subtree: true });
     }
 
-    function handleFeedFilterChange(event) {
-        if (event.target?.id !== FEED_FILTER_INPUT_ID) {
+    // Strava swaps feeds via the History API without a full reload, so we patch it to
+    // dispatch a synthetic event that lets us re-evaluate which filters apply.
+    function patchHistoryForLocationEvents() {
+        if (window.__stravaFeedFiltersHistoryPatched) {
             return;
         }
+        window.__stravaFeedFiltersHistoryPatched = true;
+
+        const dispatch = () => window.dispatchEvent(new Event('strava-feed-locationchange'));
+        const originalPushState = history.pushState;
+        const originalReplaceState = history.replaceState;
+
+        history.pushState = function() {
+            const result = originalPushState.apply(this, arguments);
+            dispatch();
+            return result;
+        };
+        history.replaceState = function() {
+            const result = originalReplaceState.apply(this, arguments);
+            dispatch();
+            return result;
+        };
+        window.addEventListener('popstate', dispatch);
+    }
+
+    function handleLocationChange() {
         applyFilterClasses();
         refreshBadges();
     }
@@ -560,7 +539,8 @@
         refreshFeedContainer();
         startRootObserver();
         syncFilterUi();
-        document.addEventListener('change', handleFeedFilterChange, true);
+        patchHistoryForLocationEvents();
+        window.addEventListener('strava-feed-locationchange', handleLocationChange);
     }
 
     window.addEventListener('beforeunload', () => {
