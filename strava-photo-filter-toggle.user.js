@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Strava Feed Filters
-// @version      5.33
+// @version      5.36
 // @description  Hide posts without photos or videos, virtual activities, posts you already liked, and your own posts in your Strava feed. Adds a Following/My Activity toggle.
 // @author       https://www.strava.com/athletes/5931245
 // @match        https://www.strava.com/dashboard*
@@ -548,21 +548,49 @@
         }
     }
 
+    // Copies the computed style from a real Strava nav-link so the toggle inherits the
+    // current theme without hardcoding colors, fonts, or paddings.
+    const NAV_LINK_STYLE_PROPERTIES = [
+        'color', 'fontSize', 'fontWeight', 'lineHeight', 'fontFamily',
+        'padding', 'letterSpacing'
+    ];
+
+    function findInactiveNavLink() {
+        const currentPath = window.location.pathname;
+        const links = document.querySelectorAll('.global-nav a.nav-link, .nav-bar a.nav-link');
+        for (const link of links) {
+            if (link.pathname && link.pathname !== currentPath) {
+                return link;
+            }
+        }
+        return null;
+    }
+
+    function copyNavLinkStyle(target) {
+        const reference = findInactiveNavLink();
+        if (!reference) {
+            return null;
+        }
+        const computed = getComputedStyle(reference);
+        NAV_LINK_STYLE_PROPERTIES.forEach(prop => {
+            target.style[prop] = computed[prop];
+        });
+        target.style.textDecoration = 'none';
+        return computed;
+    }
+
     function createFeedTypeToggle() {
         const container = document.createElement('div');
         container.id = FEED_TYPE_TOGGLE_ID;
-        container.style.cssText = 'display:inline-flex; gap:18px; flex-shrink:0;';
+        container.style.cssText = 'display:inline-flex; gap:8px; flex-shrink:0;';
 
         FEED_TYPES.forEach(feedType => {
-            const tab = document.createElement('button');
-            tab.type = 'button';
+            const tab = document.createElement('a');
+            tab.href = feedType.url;
             tab.textContent = feedType.label;
             tab.dataset.feedType = feedType.id;
-            tab.style.cssText = `
-                padding:6px 0; border:none; background:transparent;
-                cursor:pointer; font-size:13px; font-weight:600; line-height:1;
-                white-space:nowrap; border-bottom:2px solid transparent;
-            `;
+            tab.style.cursor = 'pointer';
+            tab.style.borderBottom = '2px solid transparent';
             tab.addEventListener('click', (event) => {
                 event.preventDefault();
                 switchFeedType(feedType.id);
@@ -576,10 +604,14 @@
 
     function applyFeedTypeToggleState(container) {
         const current = getCurrentFeedType();
-        container.querySelectorAll('button').forEach(tab => {
+        container.querySelectorAll('[data-feed-type]').forEach(tab => {
+            copyNavLinkStyle(tab);
             const active = tab.dataset.feedType === current;
-            tab.style.color = active ? '#000' : '#888';
             tab.style.borderBottomColor = active ? BUTTON_ACTIVE_COLOR : 'transparent';
+            if (active) {
+                tab.style.fontWeight = '700';
+                tab.style.color = '#000';
+            }
         });
     }
 
