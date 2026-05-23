@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Strava Feed Filters
-// @version      5.22
+// @version      5.23
 // @description  Hide posts without photos or videos, virtual activities, and posts you already liked in your Strava feed.
 // @author       https://www.strava.com/athletes/5931245
 // @match        https://www.strava.com/dashboard*
@@ -124,9 +124,37 @@
         }
     }
 
+    // Own activities expose a "View Kudos" button, which the liked-detection treats
+    // as liked — so the unliked filter would hide every entry on the My Activity feed.
+    function isMyActivitiesFeedSelected() {
+        const filterInput = document.getElementById(FEED_FILTER_INPUT_ID);
+        if (!filterInput) {
+            return false;
+        }
+
+        const selectedLabel = filterInput.tagName === 'SELECT'
+            ? filterInput.options[filterInput.selectedIndex]?.textContent
+            : filterInput.value;
+        const label = normalizeText(selectedLabel);
+
+        return label.includes('my activity')
+            || label.includes('my activities')
+            || label.includes('my_activity');
+    }
+
+    function isFilterApplicable(filter) {
+        if (!filterState[filter.id]) {
+            return false;
+        }
+        if (filter.id === 'unliked' && isMyActivitiesFeedSelected()) {
+            return false;
+        }
+        return true;
+    }
+
     function refreshBadges() {
         FILTERS.forEach(filter => {
-            const count = filterState[filter.id] ? hiddenCounts[filter.id] : 0;
+            const count = isFilterApplicable(filter) ? hiddenCounts[filter.id] : 0;
             updateBadge(filterUi[filter.id]?.badge, count);
         });
     }
@@ -137,7 +165,7 @@
         }
 
         FILTERS.forEach(filter => {
-            document.body.classList.toggle(filter.bodyClass, filterState[filter.id]);
+            document.body.classList.toggle(filter.bodyClass, isFilterApplicable(filter));
         });
     }
 
@@ -509,9 +537,19 @@
 
             mountFilterButtonsIfNeeded();
             refreshFeedContainer();
+            applyFilterClasses();
+            refreshBadges();
         });
 
         rootObserver.observe(document.body, { childList: true, subtree: true });
+    }
+
+    function handleFeedFilterChange(event) {
+        if (event.target?.id !== FEED_FILTER_INPUT_ID) {
+            return;
+        }
+        applyFilterClasses();
+        refreshBadges();
     }
 
     function initialize() {
@@ -522,6 +560,7 @@
         refreshFeedContainer();
         startRootObserver();
         syncFilterUi();
+        document.addEventListener('change', handleFeedFilterChange, true);
     }
 
     window.addEventListener('beforeunload', () => {
