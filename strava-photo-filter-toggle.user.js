@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Strava Feed Filters
-// @version      5.26
-// @description  Hide posts without photos or videos, virtual activities, posts you already liked, and your own posts in your Strava feed.
+// @version      5.27
+// @description  Hide posts without photos or videos, virtual activities, posts you already liked, and your own posts in your Strava feed. Adds a Following/My Activity toggle.
 // @author       https://www.strava.com/athletes/5931245
 // @match        https://www.strava.com/dashboard*
 // @grant        none
@@ -19,6 +19,7 @@
     const FEED_FILTER_INPUT_ID = 'feedFilter';
     const FILTER_WRAPPER_ID = 'strava-feed-filter-toggles';
     const FILTER_CONTROL_ROW_ID = 'strava-feed-filter-controls-row';
+    const FEED_TYPE_TOGGLE_ID = 'strava-feed-type-toggle';
     const STYLE_ELEMENT_ID = 'strava-feed-filter-styles';
     const MEDIA_SELECTOR = '[data-testid="photo"], [data-testid="video"]';
     const ACTIVITY_TAG_SELECTOR = '[data-testid="tag"]';
@@ -31,6 +32,13 @@
     const MINE_ENTRY_ATTRIBUTE = 'data-strava-mine-entry';
     const BUTTON_ACTIVE_COLOR = '#fc5200';
     const BUTTON_INACTIVE_COLOR = '#888';
+
+    // Feed-type toggle replaces Strava's react-select dropdown. Switching reloads the
+    // dashboard since Strava's React tree doesn't react to pushState/popstate alone.
+    const FEED_TYPES = [
+        { id: 'following', label: 'Following', url: '/dashboard' },
+        { id: 'my_activity', label: 'My Activity', url: '/dashboard?feed_type=my_activity' }
+    ];
 
     // Filter definitions
     const FILTERS = [
@@ -144,10 +152,16 @@
         }
     }
 
+    function getCurrentFeedType() {
+        return new URLSearchParams(window.location.search).get('feed_type') === 'my_activity'
+            ? 'my_activity'
+            : 'following';
+    }
+
     // Own activities expose a "View Kudos" button, which the liked-detection treats
     // as liked — so the unliked and mine filters would hide every entry on the My Activity feed.
     function isMyActivitiesFeedSelected() {
-        return new URLSearchParams(window.location.search).get('feed_type') === 'my_activity';
+        return getCurrentFeedType() === 'my_activity';
     }
 
     function isFilterApplicable(filter) {
@@ -519,6 +533,36 @@
         return { button, badge };
     }
 
+    function createFeedTypeToggle() {
+        const toggle = document.createElement('div');
+        toggle.id = FEED_TYPE_TOGGLE_ID;
+        toggle.style.cssText = 'display:flex; align-items:center; gap:4px; flex-shrink:0;';
+
+        const current = getCurrentFeedType();
+        FEED_TYPES.forEach(feedType => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.textContent = feedType.label;
+            button.dataset.feedType = feedType.id;
+            button.style.cssText = `
+                padding: 6px 12px;
+                color: white; border: none; border-radius: 4px;
+                cursor: pointer; font-size: 13px; font-weight: 600;
+                line-height: 1; white-space: nowrap;
+            `;
+            updateButtonStyle(button, feedType.id === current);
+            button.addEventListener('click', (event) => {
+                event.preventDefault();
+                if (getCurrentFeedType() !== feedType.id) {
+                    window.location.href = feedType.url;
+                }
+            });
+            toggle.appendChild(button);
+        });
+
+        return toggle;
+    }
+
     function insertButtons(targetForm) {
         if (document.getElementById(FILTER_WRAPPER_ID)) {
             return;
@@ -536,9 +580,10 @@
         const controlsRow = document.createElement('div');
         controlsRow.id = FILTER_CONTROL_ROW_ID;
         controlsRow.style.cssText = 'display:flex; align-items:center; flex-wrap:nowrap; gap:10px; width:max-content; max-width:100%;';
-        targetForm.style.flexShrink = '0';
 
+        targetForm.style.flexShrink = '0';
         targetForm.parentNode.insertBefore(controlsRow, targetForm);
+        controlsRow.appendChild(createFeedTypeToggle());
         controlsRow.appendChild(targetForm);
         controlsRow.appendChild(wrapper);
         syncFilterUi();
@@ -626,12 +671,28 @@
         window.addEventListener('popstate', dispatch);
     }
 
+    function syncFeedTypeToggle() {
+        const toggle = document.getElementById(FEED_TYPE_TOGGLE_ID);
+        if (!toggle) {
+            return;
+        }
+        const current = getCurrentFeedType();
+        toggle.querySelectorAll('button').forEach(button => {
+            updateButtonStyle(button, button.dataset.feedType === current);
+        });
+    }
+
     function handleLocationChange() {
         applyFilterClasses();
         refreshBadges();
+        syncFeedTypeToggle();
     }
 
     function initialize() {
+        if (!document.body) {
+            document.addEventListener('DOMContentLoaded', initialize, { once: true });
+            return;
+        }
         loadFilterState();
         ensureStyles();
         applyFilterClasses();
