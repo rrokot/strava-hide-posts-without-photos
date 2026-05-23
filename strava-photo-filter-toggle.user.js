@@ -21,7 +21,7 @@
     const FILTER_CONTROL_ROW_ID = 'strava-feed-filter-controls-row';
     const STYLE_ELEMENT_ID = 'strava-feed-filter-styles';
     const MEDIA_SELECTOR = '[data-testid="photo"], [data-testid="video"]';
-    const ACTIVITY_ICON_TITLE_SELECTOR = '[data-testid="activity-icon"] title';
+    const ACTIVITY_TAG_SELECTOR = '[data-testid="tag"]';
     const UNFILLED_KUDOS_SELECTOR = 'svg[data-testid="unfilled_kudos"]';
     const OWNER_LINK_SELECTOR = '[data-testid="owners-name"], [data-testid="owner-avatar"]';
     const ME_LINK_SELECTOR = 'header a[href*="/athletes/"], nav a[href*="/athletes/"]';
@@ -220,8 +220,8 @@
         return node && node.nodeType === Node.ELEMENT_NODE;
     }
 
-    // Strava localizes the activity-icon <title>; the icon itself has no stable type marker
-    // in markup, so we match on locale-specific roots of "virtual".
+    // [data-testid="tag"] holds the activity-type tag (e.g. "Virtual"). It might be
+    // technical and never localized, but we match locale-specific roots just in case.
     const VIRTUAL_ACTIVITY_TOKENS = [
         'virtual',     // en, es, pt
         'virtuel',     // fr, da
@@ -241,8 +241,8 @@
     ];
 
     function isVirtualActivity(entry) {
-        const title = normalizeText(entry.querySelector(ACTIVITY_ICON_TITLE_SELECTOR)?.textContent);
-        return !!title && VIRTUAL_ACTIVITY_TOKENS.some(token => title.includes(token));
+        const tag = normalizeText(entry.querySelector(ACTIVITY_TAG_SELECTOR)?.textContent);
+        return !!tag && VIRTUAL_ACTIVITY_TOKENS.some(token => tag.includes(token));
     }
 
     function normalizeText(value) {
