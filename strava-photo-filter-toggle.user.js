@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Strava Feed Filters
-// @version      5.25
-// @description  Hide posts without photos or videos, virtual activities, and posts you already liked in your Strava feed.
+// @version      5.26
+// @description  Hide posts without photos or videos, virtual activities, posts you already liked, and your own posts in your Strava feed.
 // @author       https://www.strava.com/athletes/5931245
 // @match        https://www.strava.com/dashboard*
 // @grant        none
@@ -23,8 +23,12 @@
     const MEDIA_SELECTOR = '[data-testid="photo"], [data-testid="video"]';
     const ACTIVITY_ICON_TITLE_SELECTOR = '[data-testid="activity-icon"] title';
     const UNFILLED_KUDOS_SELECTOR = 'svg[data-testid="unfilled_kudos"]';
+    const OWNER_LINK_SELECTOR = '[data-testid="owners-name"], [data-testid="owner-avatar"]';
+    const ME_LINK_SELECTOR = 'header a[href*="/athletes/"], nav a[href*="/athletes/"]';
+    const ATHLETE_HREF_PATTERN = /\/athletes\/(\d+)/;
     const VIRTUAL_ENTRY_ATTRIBUTE = 'data-strava-virtual-entry';
     const LIKED_ENTRY_ATTRIBUTE = 'data-strava-liked-entry';
+    const MINE_ENTRY_ATTRIBUTE = 'data-strava-mine-entry';
     const BUTTON_ACTIVE_COLOR = '#fc5200';
     const BUTTON_INACTIVE_COLOR = '#888';
 
@@ -59,6 +63,16 @@
             icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="17" height="17" fill="white">
                 <path d="M12.1 21.35l-1.1-1C5.4 15.24 2 12.14 2 8.35 2 5.25 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.08C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.25 22 8.35c0 3.79-3.4 6.89-9 12l-.9 1zM7.5 5C5.56 5 4 6.43 4 8.35c0 2.74 2.54 5.16 8 10.13 5.46-4.97 8-7.39 8-10.13C20 6.43 18.44 5 16.5 5c-1.54 0-3.04.99-3.57 2.36h-1.86C10.54 5.99 9.04 5 7.5 5z"/>
             </svg>`
+        },
+        {
+            id: 'mine',
+            title: 'Hide my own posts',
+            storageKey: 'stravaMineFilterEnabled',
+            defaultEnabled: false,
+            bodyClass: 'strava-hide-mine',
+            icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" fill="none">
+                <text x="12" y="15" text-anchor="middle" font-size="9" font-weight="700" font-family="Arial, sans-serif" fill="white">ME</text>
+            </svg>`
         }
     ];
 
@@ -66,13 +80,15 @@
     let rootObserver = null;
     let feedObserver = null;
     let feedContainer = null;
+    let myAthleteId = null;
     const filterState = {};
     const filterUi = {};
     const trackedEntries = new Map();
     const hiddenCounts = {
         photo: 0,
         virtual: 0,
-        unliked: 0
+        unliked: 0,
+        mine: 0
     };
 
     // Style and state helpers
@@ -93,6 +109,10 @@
             }
 
             body.${getFilterConfig('unliked').bodyClass} ${FEED_CONTAINER_SELECTOR} ${FEED_ENTRY_SELECTOR}[${LIKED_ENTRY_ATTRIBUTE}="true"] {
+                display: none !important;
+            }
+
+            body.${getFilterConfig('mine').bodyClass} ${FEED_CONTAINER_SELECTOR} ${FEED_ENTRY_SELECTOR}[${MINE_ENTRY_ATTRIBUTE}="true"] {
                 display: none !important;
             }
         `;
@@ -125,7 +145,7 @@
     }
 
     // Own activities expose a "View Kudos" button, which the liked-detection treats
-    // as liked — so the unliked filter would hide every entry on the My Activity feed.
+    // as liked — so the unliked and mine filters would hide every entry on the My Activity feed.
     function isMyActivitiesFeedSelected() {
         return new URLSearchParams(window.location.search).get('feed_type') === 'my_activity';
     }
@@ -134,10 +154,34 @@
         if (!filterState[filter.id]) {
             return false;
         }
-        if (filter.id === 'unliked' && isMyActivitiesFeedSelected()) {
+        if ((filter.id === 'unliked' || filter.id === 'mine') && isMyActivitiesFeedSelected()) {
             return false;
         }
         return true;
+    }
+
+    function extractAthleteId(href) {
+        return href?.match(ATHLETE_HREF_PATTERN)?.[1] || null;
+    }
+
+    // Returns true the first time the id becomes known so the caller can re-index entries
+    // that were tracked before the header was rendered.
+    function resolveMyAthleteIdIfPossible() {
+        if (myAthleteId) {
+            return false;
+        }
+        for (const link of document.querySelectorAll(ME_LINK_SELECTOR)) {
+            const id = extractAthleteId(link.getAttribute('href'));
+            if (id) {
+                myAthleteId = id;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function getMyAthleteId() {
+        return myAthleteId;
     }
 
     function refreshBadges() {
@@ -176,9 +220,29 @@
         return node && node.nodeType === Node.ELEMENT_NODE;
     }
 
+    // Strava localizes the activity-icon <title>; the icon itself has no stable type marker
+    // in markup, so we match on locale-specific roots of "virtual".
+    const VIRTUAL_ACTIVITY_TOKENS = [
+        'virtual',     // en, es, pt
+        'virtuel',     // fr, da
+        'virtuale',    // it
+        'virtuell',    // de, sv, no
+        'virtueel',    // nl
+        'virtuaali',   // fi
+        'wirtualn',    // pl
+        'virtuáln',    // cs
+        'виртуальн',   // ru
+        'віртуальн',   // uk
+        'バーチャル',  // ja
+        '가상',        // ko
+        '虚拟',        // zh-cn
+        '虛擬',        // zh-tw
+        'sanal'        // tr
+    ];
+
     function isVirtualActivity(entry) {
-        const activityIconTitle = normalizeText(entry.querySelector(ACTIVITY_ICON_TITLE_SELECTOR)?.textContent);
-        return activityIconTitle.includes('virtual');
+        const title = normalizeText(entry.querySelector(ACTIVITY_ICON_TITLE_SELECTOR)?.textContent);
+        return !!title && VIRTUAL_ACTIVITY_TOKENS.some(token => title.includes(token));
     }
 
     function normalizeText(value) {
@@ -189,11 +253,21 @@
         return !entry.querySelector(UNFILLED_KUDOS_SELECTOR);
     }
 
+    function isMyPost(entry) {
+        const myId = getMyAthleteId();
+        if (!myId) {
+            return false;
+        }
+        const ownerLink = entry.querySelector(OWNER_LINK_SELECTOR);
+        return extractAthleteId(ownerLink?.getAttribute('href')) === myId;
+    }
+
     function analyzeEntry(entry) {
         return {
             hasMedia: !!entry.querySelector(MEDIA_SELECTOR),
             isVirtual: isVirtualActivity(entry),
-            likedByMe: isLikedByMe(entry)
+            likedByMe: isLikedByMe(entry),
+            mine: isMyPost(entry)
         };
     }
 
@@ -215,6 +289,15 @@
         entry.removeAttribute(LIKED_ENTRY_ATTRIBUTE);
     }
 
+    function setMineEntryAttribute(entry, mine) {
+        if (mine) {
+            entry.setAttribute(MINE_ENTRY_ATTRIBUTE, 'true');
+            return;
+        }
+
+        entry.removeAttribute(MINE_ENTRY_ATTRIBUTE);
+    }
+
     // Track only the delta for entries that were added or changed, so badges stay cheap.
     function updateTrackedEntry(entry) {
         const nextState = analyzeEntry(entry);
@@ -230,6 +313,9 @@
             if (nextState.likedByMe) {
                 hiddenCounts.unliked += 1;
             }
+            if (nextState.mine) {
+                hiddenCounts.mine += 1;
+            }
         } else {
             if (previousState.hasMedia !== nextState.hasMedia) {
                 hiddenCounts.photo += nextState.hasMedia ? -1 : 1;
@@ -240,11 +326,15 @@
             if (previousState.likedByMe !== nextState.likedByMe) {
                 hiddenCounts.unliked += nextState.likedByMe ? 1 : -1;
             }
+            if (previousState.mine !== nextState.mine) {
+                hiddenCounts.mine += nextState.mine ? 1 : -1;
+            }
         }
 
         trackedEntries.set(entry, nextState);
         setVirtualEntryAttribute(entry, nextState.isVirtual);
         setLikedEntryAttribute(entry, nextState.likedByMe);
+        setMineEntryAttribute(entry, nextState.mine);
     }
 
     function removeTrackedEntry(entry) {
@@ -262,21 +352,27 @@
         if (previousState.likedByMe) {
             hiddenCounts.unliked = Math.max(0, hiddenCounts.unliked - 1);
         }
+        if (previousState.mine) {
+            hiddenCounts.mine = Math.max(0, hiddenCounts.mine - 1);
+        }
 
         trackedEntries.delete(entry);
         entry.removeAttribute(VIRTUAL_ENTRY_ATTRIBUTE);
         entry.removeAttribute(LIKED_ENTRY_ATTRIBUTE);
+        entry.removeAttribute(MINE_ENTRY_ATTRIBUTE);
     }
 
     function clearTrackedEntries() {
         trackedEntries.forEach((_, entry) => {
             entry.removeAttribute(VIRTUAL_ENTRY_ATTRIBUTE);
             entry.removeAttribute(LIKED_ENTRY_ATTRIBUTE);
+            entry.removeAttribute(MINE_ENTRY_ATTRIBUTE);
         });
         trackedEntries.clear();
         hiddenCounts.photo = 0;
         hiddenCounts.virtual = 0;
         hiddenCounts.unliked = 0;
+        hiddenCounts.mine = 0;
     }
 
     function indexFeedEntries() {
@@ -493,7 +589,11 @@
             }
 
             mountFilterButtonsIfNeeded();
+            const idJustResolved = resolveMyAthleteIdIfPossible();
             refreshFeedContainer();
+            if (idJustResolved) {
+                trackedEntries.forEach((_, entry) => updateTrackedEntry(entry));
+            }
             applyFilterClasses();
             refreshBadges();
         });
@@ -536,6 +636,7 @@
         ensureStyles();
         applyFilterClasses();
         mountFilterButtonsIfNeeded();
+        resolveMyAthleteIdIfPossible();
         refreshFeedContainer();
         startRootObserver();
         syncFilterUi();
