@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Strava Feed Filters
-// @version      5.30
+// @version      5.33
 // @description  Hide posts without photos or videos, virtual activities, posts you already liked, and your own posts in your Strava feed. Adds a Following/My Activity toggle.
 // @author       https://www.strava.com/athletes/5931245
 // @match        https://www.strava.com/dashboard*
@@ -122,6 +122,10 @@
             }
 
             body.${getFilterConfig('mine').bodyClass} ${FEED_CONTAINER_SELECTOR} ${FEED_ENTRY_SELECTOR}[${MINE_ENTRY_ATTRIBUTE}="true"] {
+                display: none !important;
+            }
+
+            a[href*="/gift"] img {
                 display: none !important;
             }
         `;
@@ -638,6 +642,13 @@
         }
     }
 
+    function restyleGiftLink() {
+        document.querySelectorAll('a[href*="/gift"].btn-primary').forEach(link => {
+            link.classList.remove('btn', 'btn-sm', 'btn-primary', 'experiment');
+            link.classList.add('nav-link');
+        });
+    }
+
     // Bootstrap
     function nodeTouchesBootstrapTargets(node) {
         if (!isElement(node)) {
@@ -672,6 +683,7 @@
             }
 
             mountFilterButtonsIfNeeded();
+            restyleGiftLink();
             const idJustResolved = resolveMyAthleteIdIfPossible();
             refreshFeedContainer();
             if (idJustResolved) {
@@ -731,6 +743,7 @@
         ensureStyles();
         applyFilterClasses();
         mountFilterButtonsIfNeeded();
+        restyleGiftLink();
         resolveMyAthleteIdIfPossible();
         refreshFeedContainer();
         startRootObserver();
