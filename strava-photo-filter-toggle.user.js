@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Strava Feed Filters
-// @version      5.27
+// @version      5.30
 // @description  Hide posts without photos or videos, virtual activities, posts you already liked, and your own posts in your Strava feed. Adds a Following/My Activity toggle.
 // @author       https://www.strava.com/athletes/5931245
 // @match        https://www.strava.com/dashboard*
@@ -20,6 +20,7 @@
     const FILTER_WRAPPER_ID = 'strava-feed-filter-toggles';
     const FILTER_CONTROL_ROW_ID = 'strava-feed-filter-controls-row';
     const FEED_TYPE_TOGGLE_ID = 'strava-feed-type-toggle';
+    const DROPDOWN_REVEAL_ID = 'strava-feed-dropdown-reveal';
     const STYLE_ELEMENT_ID = 'strava-feed-filter-styles';
     const MEDIA_SELECTOR = '[data-testid="photo"], [data-testid="video"]';
     const ACTIVITY_TAG_SELECTOR = '[data-testid="tag"]';
@@ -533,34 +534,49 @@
         return { button, badge };
     }
 
-    function createFeedTypeToggle() {
-        const toggle = document.createElement('div');
-        toggle.id = FEED_TYPE_TOGGLE_ID;
-        toggle.style.cssText = 'display:flex; align-items:center; gap:4px; flex-shrink:0;';
+    function switchFeedType(feedTypeId) {
+        if (getCurrentFeedType() === feedTypeId) {
+            return;
+        }
+        const target = FEED_TYPES.find(type => type.id === feedTypeId);
+        if (target) {
+            window.location.href = target.url;
+        }
+    }
 
-        const current = getCurrentFeedType();
+    function createFeedTypeToggle() {
+        const container = document.createElement('div');
+        container.id = FEED_TYPE_TOGGLE_ID;
+        container.style.cssText = 'display:inline-flex; gap:18px; flex-shrink:0;';
+
         FEED_TYPES.forEach(feedType => {
-            const button = document.createElement('button');
-            button.type = 'button';
-            button.textContent = feedType.label;
-            button.dataset.feedType = feedType.id;
-            button.style.cssText = `
-                padding: 6px 12px;
-                color: white; border: none; border-radius: 4px;
-                cursor: pointer; font-size: 13px; font-weight: 600;
-                line-height: 1; white-space: nowrap;
+            const tab = document.createElement('button');
+            tab.type = 'button';
+            tab.textContent = feedType.label;
+            tab.dataset.feedType = feedType.id;
+            tab.style.cssText = `
+                padding:6px 0; border:none; background:transparent;
+                cursor:pointer; font-size:13px; font-weight:600; line-height:1;
+                white-space:nowrap; border-bottom:2px solid transparent;
             `;
-            updateButtonStyle(button, feedType.id === current);
-            button.addEventListener('click', (event) => {
+            tab.addEventListener('click', (event) => {
                 event.preventDefault();
-                if (getCurrentFeedType() !== feedType.id) {
-                    window.location.href = feedType.url;
-                }
+                switchFeedType(feedType.id);
             });
-            toggle.appendChild(button);
+            container.appendChild(tab);
         });
 
-        return toggle;
+        applyFeedTypeToggleState(container);
+        return container;
+    }
+
+    function applyFeedTypeToggleState(container) {
+        const current = getCurrentFeedType();
+        container.querySelectorAll('button').forEach(tab => {
+            const active = tab.dataset.feedType === current;
+            tab.style.color = active ? '#000' : '#888';
+            tab.style.borderBottomColor = active ? BUTTON_ACTIVE_COLOR : 'transparent';
+        });
     }
 
     function insertButtons(targetForm) {
@@ -582,11 +598,33 @@
         controlsRow.style.cssText = 'display:flex; align-items:center; flex-wrap:nowrap; gap:10px; width:max-content; max-width:100%;';
 
         targetForm.style.flexShrink = '0';
+        targetForm.style.display = 'none';
         targetForm.parentNode.insertBefore(controlsRow, targetForm);
         controlsRow.appendChild(createFeedTypeToggle());
+        controlsRow.appendChild(createDropdownReveal(targetForm));
         controlsRow.appendChild(targetForm);
         controlsRow.appendChild(wrapper);
         syncFilterUi();
+    }
+
+    function createDropdownReveal(targetForm) {
+        const button = document.createElement('button');
+        button.id = DROPDOWN_REVEAL_ID;
+        button.type = 'button';
+        button.title = 'Show more feed sources';
+        button.style.cssText = `
+            background:transparent; border:none; cursor:pointer;
+            padding:2px 4px; color:#888; line-height:1; flex-shrink:0;
+            display:inline-flex; align-items:center; justify-content:center;
+        `;
+        button.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>`;
+        button.addEventListener('click', (event) => {
+            event.preventDefault();
+            const hidden = targetForm.style.display === 'none';
+            targetForm.style.display = hidden ? '' : 'none';
+            button.style.color = hidden ? '#fc5200' : '#888';
+        });
+        return button;
     }
 
     function findFilterForm() {
@@ -673,13 +711,9 @@
 
     function syncFeedTypeToggle() {
         const toggle = document.getElementById(FEED_TYPE_TOGGLE_ID);
-        if (!toggle) {
-            return;
+        if (toggle) {
+            applyFeedTypeToggleState(toggle);
         }
-        const current = getCurrentFeedType();
-        toggle.querySelectorAll('button').forEach(button => {
-            updateButtonStyle(button, button.dataset.feedType === current);
-        });
     }
 
     function handleLocationChange() {
