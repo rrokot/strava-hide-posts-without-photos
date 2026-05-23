@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Strava Feed Filters
-// @version      5.36
+// @version      5.37
 // @description  Hide posts without photos or videos, virtual activities, posts you already liked, and your own posts in your Strava feed. Adds a Following/My Activity toggle.
 // @author       https://www.strava.com/athletes/5931245
 // @match        https://www.strava.com/dashboard*
@@ -28,6 +28,7 @@
     const OWNER_LINK_SELECTOR = '[data-testid="owners-name"], [data-testid="owner-avatar"]';
     const ME_LINK_SELECTOR = 'header a[href*="/athletes/"], nav a[href*="/athletes/"]';
     const ATHLETE_HREF_PATTERN = /\/athletes\/(\d+)/;
+    const NO_MEDIA_ENTRY_ATTRIBUTE = 'data-strava-no-media-entry';
     const VIRTUAL_ENTRY_ATTRIBUTE = 'data-strava-virtual-entry';
     const LIKED_ENTRY_ATTRIBUTE = 'data-strava-liked-entry';
     const MINE_ENTRY_ATTRIBUTE = 'data-strava-mine-entry';
@@ -109,7 +110,7 @@
         const style = document.createElement('style');
         style.id = STYLE_ELEMENT_ID;
         style.textContent = `
-            body.${getFilterConfig('photo').bodyClass} ${FEED_CONTAINER_SELECTOR} ${FEED_ENTRY_SELECTOR}:not(:has(${MEDIA_SELECTOR})) {
+            body.${getFilterConfig('photo').bodyClass} ${FEED_CONTAINER_SELECTOR} ${FEED_ENTRY_SELECTOR}[${NO_MEDIA_ENTRY_ATTRIBUTE}="true"] {
                 display: none !important;
             }
 
@@ -290,6 +291,15 @@
         };
     }
 
+    function setNoMediaEntryAttribute(entry, hasMedia) {
+        if (!hasMedia) {
+            entry.setAttribute(NO_MEDIA_ENTRY_ATTRIBUTE, 'true');
+            return;
+        }
+
+        entry.removeAttribute(NO_MEDIA_ENTRY_ATTRIBUTE);
+    }
+
     function setVirtualEntryAttribute(entry, isVirtual) {
         if (isVirtual) {
             entry.setAttribute(VIRTUAL_ENTRY_ATTRIBUTE, 'true');
@@ -351,6 +361,7 @@
         }
 
         trackedEntries.set(entry, nextState);
+        setNoMediaEntryAttribute(entry, nextState.hasMedia);
         setVirtualEntryAttribute(entry, nextState.isVirtual);
         setLikedEntryAttribute(entry, nextState.likedByMe);
         setMineEntryAttribute(entry, nextState.mine);
@@ -376,6 +387,7 @@
         }
 
         trackedEntries.delete(entry);
+        entry.removeAttribute(NO_MEDIA_ENTRY_ATTRIBUTE);
         entry.removeAttribute(VIRTUAL_ENTRY_ATTRIBUTE);
         entry.removeAttribute(LIKED_ENTRY_ATTRIBUTE);
         entry.removeAttribute(MINE_ENTRY_ATTRIBUTE);
@@ -383,6 +395,7 @@
 
     function clearTrackedEntries() {
         trackedEntries.forEach((_, entry) => {
+            entry.removeAttribute(NO_MEDIA_ENTRY_ATTRIBUTE);
             entry.removeAttribute(VIRTUAL_ENTRY_ATTRIBUTE);
             entry.removeAttribute(LIKED_ENTRY_ATTRIBUTE);
             entry.removeAttribute(MINE_ENTRY_ATTRIBUTE);
@@ -566,17 +579,19 @@
         return null;
     }
 
-    function copyNavLinkStyle(target) {
-        const reference = findInactiveNavLink();
-        if (!reference) {
-            return null;
+    function applyNavLinkStyleFromComputed(target, computed) {
+        if (!computed) {
+            return;
         }
-        const computed = getComputedStyle(reference);
         NAV_LINK_STYLE_PROPERTIES.forEach(prop => {
             target.style[prop] = computed[prop];
         });
         target.style.textDecoration = 'none';
-        return computed;
+    }
+
+    function getNavLinkComputedStyle() {
+        const reference = findInactiveNavLink();
+        return reference ? getComputedStyle(reference) : null;
     }
 
     function createFeedTypeToggle() {
@@ -604,8 +619,9 @@
 
     function applyFeedTypeToggleState(container) {
         const current = getCurrentFeedType();
+        const navLinkStyle = getNavLinkComputedStyle();
         container.querySelectorAll('[data-feed-type]').forEach(tab => {
-            copyNavLinkStyle(tab);
+            applyNavLinkStyleFromComputed(tab, navLinkStyle);
             const active = tab.dataset.feedType === current;
             tab.style.borderBottomColor = active ? BUTTON_ACTIVE_COLOR : 'transparent';
             if (active) {
