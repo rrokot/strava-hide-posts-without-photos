@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Strava Feed Filters
-// @version      5.44
+// @version      5.45
 // @description  Hide posts without photos or videos, virtual activities, posts you already liked, and your own posts in your Strava feed. Adds a Following/My Activity toggle.
 // @author       https://www.strava.com/athletes/5931245
 // @match        https://www.strava.com/dashboard*
@@ -50,7 +50,7 @@
             storageKey: 'stravaPhotoFilterEnabled',
             defaultEnabled: true,
             bodyClass: 'strava-hide-no-photo',
-            icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="white">
+            icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
                 <path d="M12 5c-3.86 0-7 3.14-7 7s3.14 7 7 7 7-3.14 7-7-3.14-7-7-7zm0-2c1.1 0 2 .9 2 2h3.17C18.6 5 19 5.4 19 5.83V7h1c1.1 0 2 .9 2 2v9c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V9c0-1.1.9-2 2-2h1V5.83C5 5.4 5.4 5 5.83 5H9c0-1.1.9-2 2-2zm0 5c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zm0 2c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3z"/>
             </svg>`
         },
@@ -61,7 +61,7 @@
             defaultEnabled: false,
             bodyClass: 'strava-hide-virtual',
             icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" fill="none">
-                <text x="12" y="15" text-anchor="middle" font-size="9" font-weight="700" font-family="Arial, sans-serif" fill="white">VR</text>
+                <text x="12" y="15" text-anchor="middle" font-size="9" font-weight="700" font-family="Arial, sans-serif" fill="currentColor">VR</text>
             </svg>`
         },
         {
@@ -70,7 +70,7 @@
             storageKey: 'stravaUnlikedFilterEnabled',
             defaultEnabled: false,
             bodyClass: 'strava-show-unliked',
-            icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="17" height="17" fill="white">
+            icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="17" height="17" fill="currentColor">
                 <path d="M12.1 21.35l-1.1-1C5.4 15.24 2 12.14 2 8.35 2 5.25 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.08C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.25 22 8.35c0 3.79-3.4 6.89-9 12l-.9 1zM7.5 5C5.56 5 4 6.43 4 8.35c0 2.74 2.54 5.16 8 10.13 5.46-4.97 8-7.39 8-10.13C20 6.43 18.44 5 16.5 5c-1.54 0-3.04.99-3.57 2.36h-1.86C10.54 5.99 9.04 5 7.5 5z"/>
             </svg>`
         },
@@ -81,7 +81,7 @@
             defaultEnabled: false,
             bodyClass: 'strava-hide-mine',
             icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" fill="none">
-                <text x="12" y="15" text-anchor="middle" font-size="9" font-weight="700" font-family="Arial, sans-serif" fill="white">ME</text>
+                <text x="12" y="15" text-anchor="middle" font-size="9" font-weight="700" font-family="Arial, sans-serif" fill="currentColor">ME</text>
             </svg>`
         }
     ];
@@ -154,7 +154,7 @@
 
     function updateButtonStyle(button, enabled) {
         if (button) {
-            button.style.backgroundColor = enabled ? BUTTON_ACTIVE_COLOR : BUTTON_INACTIVE_COLOR;
+            button.style.color = enabled ? BUTTON_ACTIVE_COLOR : BUTTON_INACTIVE_COLOR;
         }
     }
 
@@ -508,15 +508,15 @@
         const badge = document.createElement('span');
         badge.style.cssText = `
             position: absolute;
-            top: -6px;
+            top: -4px;
             right: -6px;
-            background: #e03e1a;
+            background: #2c2c30;
             color: white;
             font-size: 10px;
-            font-weight: bold;
-            min-width: 16px;
-            height: 16px;
-            border-radius: 8px;
+            font-weight: 600;
+            min-width: 14px;
+            height: 14px;
+            border-radius: 7px;
             display: none;
             align-items: center;
             justify-content: center;
@@ -531,8 +531,8 @@
         button.type = 'button';
         button.title = filter.title;
         button.style.cssText = `
-            width: 32px; height: 32px; padding: 4px;
-            color: white; border: none; border-radius: 4px;
+            width: 28px; height: 28px; padding: 4px;
+            background: transparent; border: none;
             cursor: pointer; display: flex; align-items: center;
             justify-content: center; font-size: 14px; line-height: 1;
             white-space: nowrap; position: relative;
@@ -647,14 +647,19 @@
 
         const controlsRow = document.createElement('div');
         controlsRow.id = FILTER_CONTROL_ROW_ID;
-        controlsRow.style.cssText = 'display:flex; align-items:center; flex-wrap:nowrap; gap:10px; width:max-content; max-width:100%;';
+        controlsRow.style.cssText = 'display:flex; align-items:center; flex-wrap:nowrap; gap:32px; width:max-content; max-width:100%;';
+
+        // Group feed-source controls so they read as one unit, with a bigger gap before filters.
+        const feedGroup = document.createElement('div');
+        feedGroup.style.cssText = 'display:flex; align-items:center; gap:6px; flex-shrink:0;';
 
         targetForm.style.flexShrink = '0';
         targetForm.style.display = 'none';
         targetForm.parentNode.insertBefore(controlsRow, targetForm);
-        controlsRow.appendChild(createFeedTypeToggle());
-        controlsRow.appendChild(createDropdownReveal(targetForm));
-        controlsRow.appendChild(targetForm);
+        feedGroup.appendChild(createFeedTypeToggle());
+        feedGroup.appendChild(createDropdownReveal(targetForm));
+        feedGroup.appendChild(targetForm);
+        controlsRow.appendChild(feedGroup);
         controlsRow.appendChild(wrapper);
         syncFilterUi();
     }
