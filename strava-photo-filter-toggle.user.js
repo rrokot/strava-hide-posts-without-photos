@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Strava Feed Filters
-// @version      5.40
+// @version      5.41
 // @description  Hide posts without photos or videos, virtual activities, posts you already liked, and your own posts in your Strava feed. Adds a Following/My Activity toggle.
 // @author       https://www.strava.com/athletes/5931245
 // @match        https://www.strava.com/dashboard*
@@ -417,7 +417,6 @@
 
         feedContainer.querySelectorAll(FEED_ENTRY_SELECTOR).forEach(updateTrackedEntry);
         refreshBadges();
-        syncDropdownRevealColor();
     }
 
     function collectClosestEntry(node, result) {
@@ -466,7 +465,6 @@
         });
 
         refreshBadges();
-        syncDropdownRevealColor();
     }
 
     function disconnectFeedObserver() {
@@ -661,54 +659,27 @@
         syncFilterUi();
     }
 
-    function findSharedChevronIcon() {
-        // Look for a 16x16 down-chevron on a popup-trigger button (e.g. entry share menu).
-        for (const button of document.querySelectorAll('button[aria-haspopup="menu"]')) {
-            const svg = button.querySelector('svg[viewBox="0 0 16 16"]');
-            if (svg && /^M14\.384/.test(svg.querySelector('path')?.getAttribute('d') || '')) {
-                return svg;
-            }
-        }
-        return null;
-    }
-
-    function syncDropdownRevealColor() {
-        const button = document.getElementById(DROPDOWN_REVEAL_ID);
-        if (!button || button.dataset.colorSynced === 'true') {
-            return;
-        }
-        const referenceIcon = findSharedChevronIcon();
-        if (!referenceIcon) {
-            return;
-        }
-        const color = getComputedStyle(referenceIcon).color;
-        button.dataset.baseColor = color;
-        button.dataset.colorSynced = 'true';
-        if (button.dataset.revealed !== 'true') {
-            button.style.color = color;
-        }
-    }
-
     function createDropdownReveal(targetForm) {
         const button = document.createElement('button');
         button.id = DROPDOWN_REVEAL_ID;
         button.type = 'button';
         button.title = 'Show more feed sources';
-        button.dataset.revealed = 'false';
         button.style.cssText = `
             background:transparent; border:none; cursor:pointer;
             padding:2px 4px; line-height:0; flex-shrink:0;
             display:inline-flex; align-items:center; justify-content:center;
         `;
-        // Inline SVG path matches Strava's generic dropdown chevron (used by share menus).
-        button.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M14.384 5.5L8.796 11.09c-.44.44-1.152.44-1.591 0L1.616 5.5l.884-.884 5.5 5.5 5.5-5.5z"/></svg>';
+        // Strava ships an icon-font class for the dropdown caret — let the site style it.
+        const icon = document.createElement('span');
+        icon.className = 'app-icon icon-caret-down icon-dark';
+        button.appendChild(icon);
 
         button.addEventListener('click', (event) => {
             event.preventDefault();
             const hidden = targetForm.style.display === 'none';
             targetForm.style.display = hidden ? '' : 'none';
-            button.dataset.revealed = hidden ? 'true' : 'false';
-            button.style.color = hidden ? BUTTON_ACTIVE_COLOR : (button.dataset.baseColor || '');
+            icon.classList.toggle('icon-caret-up', hidden);
+            icon.classList.toggle('icon-caret-down', !hidden);
         });
         return button;
     }
