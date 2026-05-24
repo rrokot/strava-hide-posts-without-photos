@@ -136,14 +136,14 @@
                 transition: background-color 0.12s ease;
             }
             #${FILTER_WRAPPER_ID} button:hover {
-                background-color: rgba(0, 0, 0, 0.07);
+                background-color: #fff;
             }
             #${DROPDOWN_REVEAL_ID} {
                 border-radius: 4px;
                 transition: background-color 0.12s ease;
             }
             #${DROPDOWN_REVEAL_ID}:hover {
-                background-color: rgba(0, 0, 0, 0.07);
+                background-color: #fff;
             }
         `;
 
