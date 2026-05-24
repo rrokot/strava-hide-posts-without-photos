@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Strava Feed Filters
-// @version      5.38
+// @version      5.39
 // @description  Hide posts without photos or videos, virtual activities, posts you already liked, and your own posts in your Strava feed. Adds a Following/My Activity toggle.
 // @author       https://www.strava.com/athletes/5931245
 // @match        https://www.strava.com/dashboard*
@@ -668,11 +668,13 @@
             background:transparent; border:none; cursor:pointer;
             padding:2px 4px; line-height:0; flex-shrink:0;
             display:inline-flex; align-items:center; justify-content:center;
-            color:inherit;
         `;
 
         // Clone Strava's own react-select chevron so the icon matches the rest of the site.
         const referenceIcon = targetForm.querySelector('[class*="indicatorContainer"] svg, [class*="Indicator"] svg');
+        const baseColor = referenceIcon ? getComputedStyle(referenceIcon).color : '';
+        button.style.color = baseColor;
+
         if (referenceIcon) {
             button.appendChild(referenceIcon.cloneNode(true));
         } else {
@@ -683,7 +685,7 @@
             event.preventDefault();
             const hidden = targetForm.style.display === 'none';
             targetForm.style.display = hidden ? '' : 'none';
-            button.style.color = hidden ? BUTTON_ACTIVE_COLOR : 'inherit';
+            button.style.color = hidden ? BUTTON_ACTIVE_COLOR : baseColor;
         });
         return button;
     }
