@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Strava Feed Filters
-// @version      5.37
+// @version      5.38
 // @description  Hide posts without photos or videos, virtual activities, posts you already liked, and your own posts in your Strava feed. Adds a Following/My Activity toggle.
 // @author       https://www.strava.com/athletes/5931245
 // @match        https://www.strava.com/dashboard*
@@ -666,15 +666,24 @@
         button.title = 'Show more feed sources';
         button.style.cssText = `
             background:transparent; border:none; cursor:pointer;
-            padding:2px 4px; color:#888; line-height:1; flex-shrink:0;
+            padding:2px 4px; line-height:0; flex-shrink:0;
             display:inline-flex; align-items:center; justify-content:center;
+            color:inherit;
         `;
-        button.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>`;
+
+        // Clone Strava's own react-select chevron so the icon matches the rest of the site.
+        const referenceIcon = targetForm.querySelector('[class*="indicatorContainer"] svg, [class*="Indicator"] svg');
+        if (referenceIcon) {
+            button.appendChild(referenceIcon.cloneNode(true));
+        } else {
+            button.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>';
+        }
+
         button.addEventListener('click', (event) => {
             event.preventDefault();
             const hidden = targetForm.style.display === 'none';
             targetForm.style.display = hidden ? '' : 'none';
-            button.style.color = hidden ? '#fc5200' : '#888';
+            button.style.color = hidden ? BUTTON_ACTIVE_COLOR : 'inherit';
         });
         return button;
     }
