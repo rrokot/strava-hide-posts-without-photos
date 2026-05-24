@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Strava Feed Filters
-// @version      5.50
+// @version      5.51
 // @description  Hide posts without photos or videos, virtual activities, posts you already liked, and your own posts in your Strava feed. Adds a Following/My Activity toggle.
 // @author       https://www.strava.com/athletes/5931245
 // @match        https://www.strava.com/dashboard*
@@ -92,6 +92,7 @@
     let feedObserver = null;
     let feedContainer = null;
     let myAthleteId = null;
+    let stravaButtonClass = null;
     const filterState = {};
     const filterUi = {};
     const trackedEntries = new Map();
@@ -131,15 +132,6 @@
                 display: none !important;
             }
 
-            #${FILTER_WRAPPER_ID} button,
-            #${DROPDOWN_REVEAL_ID} {
-                border-radius: 4px;
-                transition: box-shadow 0.12s ease;
-            }
-            #${FILTER_WRAPPER_ID} button:hover,
-            #${DROPDOWN_REVEAL_ID}:hover {
-                box-shadow: inset 0 0 0 999px #e8e8e8;
-            }
         `;
 
         document.head.appendChild(style);
@@ -428,6 +420,7 @@
 
         feedContainer.querySelectorAll(FEED_ENTRY_SELECTOR).forEach(updateTrackedEntry);
         refreshBadges();
+        applyStravaButtonClasses();
     }
 
     function collectClosestEntry(node, result) {
@@ -476,6 +469,7 @@
         });
 
         refreshBadges();
+        applyStravaButtonClasses();
     }
 
     function disconnectFeedObserver() {
@@ -699,6 +693,29 @@
         const filterForm = findFilterForm();
         if (filterForm) {
             insertButtons(filterForm);
+        }
+    }
+
+    // Adopt the same className Strava uses on entry kudos buttons so our controls
+    // inherit native hover/focus/active treatments.
+    function applyStravaButtonClasses() {
+        if (!stravaButtonClass) {
+            const reference = document.querySelector('[data-testid="kudos_button"]');
+            if (!reference) {
+                return;
+            }
+            stravaButtonClass = reference.className;
+        }
+        document.querySelectorAll(`#${FILTER_WRAPPER_ID} button`).forEach(btn => {
+            if (btn.dataset.stravaClassApplied !== 'true') {
+                btn.className = stravaButtonClass;
+                btn.dataset.stravaClassApplied = 'true';
+            }
+        });
+        const reveal = document.getElementById(DROPDOWN_REVEAL_ID);
+        if (reveal && reveal.dataset.stravaClassApplied !== 'true') {
+            reveal.className = stravaButtonClass;
+            reveal.dataset.stravaClassApplied = 'true';
         }
     }
 
