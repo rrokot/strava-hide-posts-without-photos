@@ -131,19 +131,14 @@
                 display: none !important;
             }
 
-            #${FILTER_WRAPPER_ID} button {
-                border-radius: 4px;
-                transition: background-color 0.12s ease;
-            }
-            #${FILTER_WRAPPER_ID} button:hover {
-                background-color: #fff;
-            }
+            #${FILTER_WRAPPER_ID} button,
             #${DROPDOWN_REVEAL_ID} {
                 border-radius: 4px;
-                transition: background-color 0.12s ease;
+                transition: box-shadow 0.12s ease;
             }
+            #${FILTER_WRAPPER_ID} button:hover,
             #${DROPDOWN_REVEAL_ID}:hover {
-                background-color: #fff;
+                box-shadow: inset 0 0 0 999px #e8e8e8;
             }
         `;
 
@@ -542,9 +537,8 @@
         button.style.cssText = `
             position: relative;
             width: 28px; height: 28px; padding: 4px;
-            background: transparent; border: none;
-            cursor: pointer; display: inline-flex;
-            align-items: center; justify-content: center;
+            border: none; cursor: pointer;
+            display: inline-flex; align-items: center; justify-content: center;
             line-height: 1; white-space: nowrap;
         `;
         button.innerHTML = filter.icon;
@@ -682,7 +676,7 @@
         button.setAttribute('aria-haspopup', 'menu');
         button.setAttribute('aria-expanded', 'false');
         button.style.cssText = `
-            background:transparent; border:none; cursor:pointer;
+            border:none; cursor:pointer;
             padding:2px 4px; line-height:0; flex-shrink:0;
             display:inline-flex; align-items:center; justify-content:center;
         `;
