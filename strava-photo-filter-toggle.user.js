@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Strava Feed Filters
-// @version      5.43
+// @version      5.44
 // @description  Hide posts without photos or videos, virtual activities, posts you already liked, and your own posts in your Strava feed. Adds a Following/My Activity toggle.
 // @author       https://www.strava.com/athletes/5931245
 // @match        https://www.strava.com/dashboard*
@@ -417,10 +417,6 @@
 
         feedContainer.querySelectorAll(FEED_ENTRY_SELECTOR).forEach(updateTrackedEntry);
         refreshBadges();
-        const targetForm = getRevealTargetForm();
-        if (targetForm) {
-            ensureRevealCloned(targetForm);
-        }
     }
 
     function collectClosestEntry(node, result) {
@@ -469,10 +465,6 @@
         });
 
         refreshBadges();
-        const targetForm = getRevealTargetForm();
-        if (targetForm) {
-            ensureRevealCloned(targetForm);
-        }
     }
 
     function disconnectFeedObserver() {
@@ -667,52 +659,7 @@
         syncFilterUi();
     }
 
-    function findShareDropdownButton() {
-        for (const btn of document.querySelectorAll('button[aria-haspopup="menu"]')) {
-            if (btn.id === DROPDOWN_REVEAL_ID) {
-                continue; // Skip our own placeholder so we don't clone ourselves.
-            }
-            const svg = btn.querySelector('svg[viewBox="0 0 16 16"]');
-            if (svg && /^M14\.384/.test(svg.querySelector('path')?.getAttribute('d') || '')) {
-                return btn;
-            }
-        }
-        return null;
-    }
-
-    function makeRevealClickHandler(button, targetForm) {
-        return (event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            const hidden = targetForm.style.display === 'none';
-            targetForm.style.display = hidden ? '' : 'none';
-            button.setAttribute('aria-expanded', String(hidden));
-        };
-    }
-
-    function ensureRevealCloned(targetForm) {
-        const button = document.getElementById(DROPDOWN_REVEAL_ID);
-        if (!button || button.dataset.cloned === 'true') {
-            return;
-        }
-        const reference = findShareDropdownButton();
-        if (!reference) {
-            return;
-        }
-        const clone = reference.cloneNode(true);
-        clone.id = DROPDOWN_REVEAL_ID;
-        clone.removeAttribute('aria-controls');
-        clone.setAttribute('aria-expanded', 'false');
-        clone.title = 'Show more feed sources';
-        clone.dataset.cloned = 'true';
-        clone.style.flexShrink = '0';
-        clone.addEventListener('click', makeRevealClickHandler(clone, targetForm));
-        button.replaceWith(clone);
-    }
-
     function createDropdownReveal(targetForm) {
-        // Fallback placeholder used until Strava's reference share button is rendered.
-        // ensureRevealCloned() swaps this for a true clone once entries appear.
         const button = document.createElement('button');
         button.id = DROPDOWN_REVEAL_ID;
         button.type = 'button';
@@ -724,13 +671,15 @@
             padding:2px 4px; line-height:0; flex-shrink:0;
             display:inline-flex; align-items:center; justify-content:center;
         `;
+        // 16x16 chevron path used by Strava's entry share menus — sized right for our row.
         button.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M14.384 5.5L8.796 11.09c-.44.44-1.152.44-1.591 0L1.616 5.5l.884-.884 5.5 5.5 5.5-5.5z"/></svg>';
-        button.addEventListener('click', makeRevealClickHandler(button, targetForm));
+        button.addEventListener('click', (event) => {
+            event.preventDefault();
+            const hidden = targetForm.style.display === 'none';
+            targetForm.style.display = hidden ? '' : 'none';
+            button.setAttribute('aria-expanded', String(hidden));
+        });
         return button;
-    }
-
-    function getRevealTargetForm() {
-        return document.getElementById(FEED_FILTER_INPUT_ID)?.closest('form') || null;
     }
 
     function findFilterForm() {
