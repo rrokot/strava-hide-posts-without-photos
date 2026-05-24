@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Strava Feed Filters
-// @version      5.45
+// @version      5.46
 // @description  Hide posts without photos or videos, virtual activities, posts you already liked, and your own posts in your Strava feed. Adds a Following/My Activity toggle.
 // @author       https://www.strava.com/athletes/5931245
 // @match        https://www.strava.com/dashboard*
@@ -70,8 +70,9 @@
             storageKey: 'stravaUnlikedFilterEnabled',
             defaultEnabled: false,
             bodyClass: 'strava-show-unliked',
-            icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="17" height="17" fill="currentColor">
-                <path d="M12.1 21.35l-1.1-1C5.4 15.24 2 12.14 2 8.35 2 5.25 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.08C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.25 22 8.35c0 3.79-3.4 6.89-9 12l-.9 1zM7.5 5C5.56 5 4 6.43 4 8.35c0 2.74 2.54 5.16 8 10.13 5.46-4.97 8-7.39 8-10.13C20 6.43 18.44 5 16.5 5c-1.54 0-3.04.99-3.57 2.36h-1.86C10.54 5.99 9.04 5 7.5 5z"/>
+            // Same path Strava uses for its filled_kudos icon, so the filter mirrors the affordance it controls.
+            icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16" fill="currentColor">
+                <path d="M14.625 10.96V9.5l.275-.338A1.94 1.94 0 0013.394 6H8.6l.496-4.055A1.735 1.735 0 007.374 0a.578.578 0 00-.527.34l-2.5 5.556a.667.667 0 01-.184.24L1.243 8.55A.667.667 0 001 9.064v3.603C1 13.403 1.597 14 2.333 14h1.468l1.163.776c.219.146.477.224.74.224h6.171A2.125 2.125 0 0014 12.875v-.395l.112-.13c.331-.387.513-.88.513-1.39z"/>
             </svg>`
         },
         {
@@ -148,7 +149,7 @@
     function updateBadge(badge, count) {
         if (badge) {
             badge.textContent = count > 0 ? count : '';
-            badge.style.display = count > 0 ? 'flex' : 'none';
+            badge.style.display = count > 0 ? 'inline-block' : 'none';
         }
     }
 
@@ -508,20 +509,13 @@
         const badge = document.createElement('span');
         badge.style.cssText = `
             position: absolute;
-            top: -4px;
-            right: -6px;
-            background: #2c2c30;
-            color: white;
+            top: -6px;
+            right: -8px;
+            color: #000;
             font-size: 10px;
-            font-weight: 600;
-            min-width: 14px;
-            height: 14px;
-            border-radius: 7px;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            padding: 0 3px;
+            font-weight: 700;
             line-height: 1;
+            display: none;
         `;
         return badge;
     }
