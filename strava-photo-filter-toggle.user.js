@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Strava Feed Filters
-// @version      5.41
+// @version      5.42
 // @description  Hide posts without photos or videos, virtual activities, posts you already liked, and your own posts in your Strava feed. Adds a Following/My Activity toggle.
 // @author       https://www.strava.com/athletes/5931245
 // @match        https://www.strava.com/dashboard*
@@ -664,6 +664,8 @@
         button.id = DROPDOWN_REVEAL_ID;
         button.type = 'button';
         button.title = 'Show more feed sources';
+        button.setAttribute('aria-haspopup', 'menu');
+        button.setAttribute('aria-expanded', 'false');
         button.style.cssText = `
             background:transparent; border:none; cursor:pointer;
             padding:2px 4px; line-height:0; flex-shrink:0;
@@ -671,15 +673,14 @@
         `;
         // Strava ships an icon-font class for the dropdown caret — let the site style it.
         const icon = document.createElement('span');
-        icon.className = 'app-icon icon-caret-down icon-dark';
+        icon.className = 'app-icon icon-caret-down icon-dark icon-sm';
         button.appendChild(icon);
 
         button.addEventListener('click', (event) => {
             event.preventDefault();
             const hidden = targetForm.style.display === 'none';
             targetForm.style.display = hidden ? '' : 'none';
-            icon.classList.toggle('icon-caret-up', hidden);
-            icon.classList.toggle('icon-caret-down', !hidden);
+            button.setAttribute('aria-expanded', String(hidden));
         });
         return button;
     }
