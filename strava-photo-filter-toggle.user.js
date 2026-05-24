@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Strava Feed Filters
-// @version      5.46
+// @version      5.47
 // @description  Hide posts without photos or videos, virtual activities, posts you already liked, and your own posts in your Strava feed. Adds a Following/My Activity toggle.
 // @author       https://www.strava.com/athletes/5931245
 // @match        https://www.strava.com/dashboard*
@@ -50,7 +50,7 @@
             storageKey: 'stravaPhotoFilterEnabled',
             defaultEnabled: true,
             bodyClass: 'strava-hide-no-photo',
-            icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+            icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="display:block">
                 <path d="M12 5c-3.86 0-7 3.14-7 7s3.14 7 7 7 7-3.14 7-7-3.14-7-7-7zm0-2c1.1 0 2 .9 2 2h3.17C18.6 5 19 5.4 19 5.83V7h1c1.1 0 2 .9 2 2v9c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V9c0-1.1.9-2 2-2h1V5.83C5 5.4 5.4 5 5.83 5H9c0-1.1.9-2 2-2zm0 5c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zm0 2c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3z"/>
             </svg>`
         },
@@ -60,8 +60,8 @@
             storageKey: 'stravaVirtualFilterEnabled',
             defaultEnabled: false,
             bodyClass: 'strava-hide-virtual',
-            icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" fill="none">
-                <text x="12" y="15" text-anchor="middle" font-size="9" font-weight="700" font-family="Arial, sans-serif" fill="currentColor">VR</text>
+            icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="none" style="display:block">
+                <text x="12" y="16" text-anchor="middle" font-size="10" font-weight="700" font-family="Arial, sans-serif" fill="currentColor">VR</text>
             </svg>`
         },
         {
@@ -71,7 +71,7 @@
             defaultEnabled: false,
             bodyClass: 'strava-show-unliked',
             // Same path Strava uses for its filled_kudos icon, so the filter mirrors the affordance it controls.
-            icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16" fill="currentColor">
+            icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16" fill="currentColor" style="display:block">
                 <path d="M14.625 10.96V9.5l.275-.338A1.94 1.94 0 0013.394 6H8.6l.496-4.055A1.735 1.735 0 007.374 0a.578.578 0 00-.527.34l-2.5 5.556a.667.667 0 01-.184.24L1.243 8.55A.667.667 0 001 9.064v3.603C1 13.403 1.597 14 2.333 14h1.468l1.163.776c.219.146.477.224.74.224h6.171A2.125 2.125 0 0014 12.875v-.395l.112-.13c.331-.387.513-.88.513-1.39z"/>
             </svg>`
         },
@@ -81,8 +81,8 @@
             storageKey: 'stravaMineFilterEnabled',
             defaultEnabled: false,
             bodyClass: 'strava-hide-mine',
-            icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" fill="none">
-                <text x="12" y="15" text-anchor="middle" font-size="9" font-weight="700" font-family="Arial, sans-serif" fill="currentColor">ME</text>
+            icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="none" style="display:block">
+                <text x="12" y="16" text-anchor="middle" font-size="10" font-weight="700" font-family="Arial, sans-serif" fill="currentColor">ME</text>
             </svg>`
         }
     ];
@@ -149,7 +149,7 @@
     function updateBadge(badge, count) {
         if (badge) {
             badge.textContent = count > 0 ? count : '';
-            badge.style.display = count > 0 ? 'inline-block' : 'none';
+            badge.style.display = count > 0 ? 'inline' : 'none';
         }
     }
 
@@ -508,11 +508,8 @@
     function createBadge() {
         const badge = document.createElement('span');
         badge.style.cssText = `
-            position: absolute;
-            top: -6px;
-            right: -8px;
             color: #000;
-            font-size: 10px;
+            font-size: 11px;
             font-weight: 700;
             line-height: 1;
             display: none;
@@ -525,11 +522,10 @@
         button.type = 'button';
         button.title = filter.title;
         button.style.cssText = `
-            width: 28px; height: 28px; padding: 4px;
+            height: 28px; padding: 4px 6px;
             background: transparent; border: none;
-            cursor: pointer; display: flex; align-items: center;
-            justify-content: center; font-size: 14px; line-height: 1;
-            white-space: nowrap; position: relative;
+            cursor: pointer; display: inline-flex; align-items: center;
+            gap: 3px; line-height: 1; white-space: nowrap;
         `;
         button.innerHTML = filter.icon;
 
