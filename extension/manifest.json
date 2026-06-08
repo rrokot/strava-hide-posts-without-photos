@@ -28,6 +28,7 @@
           "none"
         ]
       }
-    }
+    },
+    "gecko_android": {}
   }
 }

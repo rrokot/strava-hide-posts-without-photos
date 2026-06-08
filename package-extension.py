@@ -60,6 +60,10 @@ def main() -> int:
         == ["none"],
         "Firefox data collection permissions must be ['none']",
     )
+    assert_valid(
+        manifest.get("browser_specific_settings", {}).get("gecko_android") == {},
+        "Firefox Android support requires empty gecko_android settings",
+    )
 
     for size in ("16", "48", "64", "128"):
         icon_path = manifest.get("icons", {}).get(size)
