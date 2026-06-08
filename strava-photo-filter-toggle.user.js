@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Strava Feed Filters
 // @namespace    https://github.com/rrokot/strava-hide-posts-without-photos
-// @version      5.52.1
+// @version      5.52.2
 // @description  Hide posts without photos or videos, virtual activities, posts you already liked, and your own posts in your Strava feed. Adds a Following/My Activity toggle.
 // @author       https://www.strava.com/athletes/5931245
 // @match        https://www.strava.com/dashboard*
@@ -604,7 +604,8 @@
     // current theme without hardcoding colors, fonts, or paddings.
     const NAV_LINK_STYLE_PROPERTIES = [
         'color', 'fontSize', 'fontWeight', 'lineHeight', 'fontFamily',
-        'padding', 'letterSpacing'
+        'padding', 'letterSpacing', 'display', 'alignItems', 'height',
+        'textTransform'
     ];
 
     function findInactiveNavLink() {
@@ -761,9 +762,11 @@
     }
 
     function restyleGiftLink() {
+        const navLinkStyle = getNavLinkComputedStyle();
         document.querySelectorAll('a[href*="/gift"].btn-primary').forEach(link => {
             link.classList.remove('btn', 'btn-sm', 'btn-primary', 'experiment');
             link.classList.add('nav-link');
+            applyNavLinkStyleFromComputed(link, navLinkStyle);
         });
     }
 
