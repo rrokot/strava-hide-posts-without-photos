@@ -48,6 +48,18 @@ def main() -> int:
     manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
     assert_valid(manifest.get("manifest_version") == 3, "manifest_version must be 3")
     assert_valid(manifest.get("version"), "manifest version is missing")
+    assert_valid(
+        manifest.get("browser_specific_settings", {}).get("gecko", {}).get("id"),
+        "Firefox gecko id is missing",
+    )
+    assert_valid(
+        manifest.get("browser_specific_settings", {})
+        .get("gecko", {})
+        .get("data_collection_permissions", {})
+        .get("required")
+        == ["none"],
+        "Firefox data collection permissions must be ['none']",
+    )
 
     for size in ("16", "48", "64", "128"):
         icon_path = manifest.get("icons", {}).get(size)
