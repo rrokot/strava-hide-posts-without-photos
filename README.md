@@ -17,12 +17,12 @@ Orange is on; badges show hidden counts. The "already liked" and "your own" filt
 
 ## Installation
 
+Install the [Chrome extension](https://chromewebstore.google.com/detail/strava-feed-filters/jdefobolefeekjbgaclabbcffmebamdo).
+
+Or install the Tampermonkey userscript:
+
 1. Install [Tampermonkey](https://www.tampermonkey.net/)
 2. Install the script: [**Strava Feed Filters**](https://raw.githubusercontent.com/rrokot/strava-hide-posts-without-photos/main/strava-photo-filter-toggle.user.js)
-
-## Chrome Extension
-
-Chrome extension support is planned.
 
 Author: [rrokot](https://www.strava.com/athletes/5931245)
 
