@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Strava Feed Filters
 // @namespace    https://github.com/rrokot/strava-hide-posts-without-photos
-// @version      5.52.0
+// @version      5.52.1
 // @description  Hide posts without photos or videos, virtual activities, posts you already liked, and your own posts in your Strava feed. Adds a Following/My Activity toggle.
 // @author       https://www.strava.com/athletes/5931245
 // @match        https://www.strava.com/dashboard*
@@ -36,6 +36,7 @@
     const MINE_ENTRY_ATTRIBUTE = 'data-strava-mine-entry';
     const BUTTON_ACTIVE_COLOR = '#fc5200';
     const BUTTON_INACTIVE_COLOR = '#888';
+    const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
 
     // Feed-type toggle replaces Strava's react-select dropdown. Switching reloads the
     // dashboard since Strava's React tree doesn't react to pushState/popstate alone.
@@ -52,9 +53,10 @@
             storageKey: 'stravaPhotoFilterEnabled',
             defaultEnabled: true,
             bodyClass: 'strava-hide-no-photo',
-            icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="display:block">
-                <path d="M12 5c-3.86 0-7 3.14-7 7s3.14 7 7 7 7-3.14 7-7-3.14-7-7-7zm0-2c1.1 0 2 .9 2 2h3.17C18.6 5 19 5.4 19 5.83V7h1c1.1 0 2 .9 2 2v9c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V9c0-1.1.9-2 2-2h1V5.83C5 5.4 5.4 5 5.83 5H9c0-1.1.9-2 2-2zm0 5c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zm0 2c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3z"/>
-            </svg>`
+            iconFactory: () => createPathIcon(
+                '0 0 24 24',
+                'M12 5c-3.86 0-7 3.14-7 7s3.14 7 7 7 7-3.14 7-7-3.14-7-7-7zm0-2c1.1 0 2 .9 2 2h3.17C18.6 5 19 5.4 19 5.83V7h1c1.1 0 2 .9 2 2v9c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V9c0-1.1.9-2 2-2h1V5.83C5 5.4 5.4 5 5.83 5H9c0-1.1.9-2 2-2zm0 5c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zm0 2c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3z'
+            )
         },
         {
             id: 'virtual',
@@ -62,9 +64,7 @@
             storageKey: 'stravaVirtualFilterEnabled',
             defaultEnabled: false,
             bodyClass: 'strava-hide-virtual',
-            icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16" fill="none" style="display:block">
-                <text x="8" y="12" text-anchor="middle" font-size="11" font-weight="800" font-family="Arial, sans-serif" fill="currentColor">VR</text>
-            </svg>`
+            iconFactory: () => createTextIcon('VR')
         },
         {
             id: 'unliked',
@@ -73,9 +73,10 @@
             defaultEnabled: false,
             bodyClass: 'strava-show-unliked',
             // Same path Strava uses for its filled_kudos icon, so the filter mirrors the affordance it controls.
-            icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16" fill="currentColor" style="display:block">
-                <path d="M14.625 10.96V9.5l.275-.338A1.94 1.94 0 0013.394 6H8.6l.496-4.055A1.735 1.735 0 007.374 0a.578.578 0 00-.527.34l-2.5 5.556a.667.667 0 01-.184.24L1.243 8.55A.667.667 0 001 9.064v3.603C1 13.403 1.597 14 2.333 14h1.468l1.163.776c.219.146.477.224.74.224h6.171A2.125 2.125 0 0014 12.875v-.395l.112-.13c.331-.387.513-.88.513-1.39z"/>
-            </svg>`
+            iconFactory: () => createPathIcon(
+                '0 0 16 16',
+                'M14.625 10.96V9.5l.275-.338A1.94 1.94 0 0013.394 6H8.6l.496-4.055A1.735 1.735 0 007.374 0a.578.578 0 00-.527.34l-2.5 5.556a.667.667 0 01-.184.24L1.243 8.55A.667.667 0 001 9.064v3.603C1 13.403 1.597 14 2.333 14h1.468l1.163.776c.219.146.477.224.74.224h6.171A2.125 2.125 0 0014 12.875v-.395l.112-.13c.331-.387.513-.88.513-1.39z'
+            )
         },
         {
             id: 'mine',
@@ -83,9 +84,7 @@
             storageKey: 'stravaMineFilterEnabled',
             defaultEnabled: false,
             bodyClass: 'strava-hide-mine',
-            icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16" fill="none" style="display:block">
-                <text x="8" y="12" text-anchor="middle" font-size="11" font-weight="800" font-family="Arial, sans-serif" fill="currentColor">ME</text>
-            </svg>`
+            iconFactory: () => createTextIcon('ME')
         }
     ];
 
@@ -526,6 +525,46 @@
         return badge;
     }
 
+    function createSvg(viewBox, fill) {
+        const svg = document.createElementNS(SVG_NAMESPACE, 'svg');
+        svg.setAttribute('viewBox', viewBox);
+        svg.setAttribute('width', '16');
+        svg.setAttribute('height', '16');
+        svg.setAttribute('fill', fill);
+        svg.style.display = 'block';
+        return svg;
+    }
+
+    function createPathIcon(viewBox, pathData) {
+        const svg = createSvg(viewBox, 'currentColor');
+        const path = document.createElementNS(SVG_NAMESPACE, 'path');
+        path.setAttribute('d', pathData);
+        svg.appendChild(path);
+        return svg;
+    }
+
+    function createTextIcon(label) {
+        const svg = createSvg('0 0 16 16', 'none');
+        const text = document.createElementNS(SVG_NAMESPACE, 'text');
+        text.setAttribute('x', '8');
+        text.setAttribute('y', '12');
+        text.setAttribute('text-anchor', 'middle');
+        text.setAttribute('font-size', '11');
+        text.setAttribute('font-weight', '800');
+        text.setAttribute('font-family', 'Arial, sans-serif');
+        text.setAttribute('fill', 'currentColor');
+        text.textContent = label;
+        svg.appendChild(text);
+        return svg;
+    }
+
+    function createChevronIcon() {
+        return createPathIcon(
+            '0 0 16 16',
+            'M14.384 5.5L8.796 11.09c-.44.44-1.152.44-1.591 0L1.616 5.5l.884-.884 5.5 5.5 5.5-5.5z'
+        );
+    }
+
     function createFilterButton(filter) {
         const button = document.createElement('button');
         button.type = 'button';
@@ -537,7 +576,7 @@
             display: inline-flex; align-items: center; justify-content: center;
             line-height: 1; white-space: nowrap;
         `;
-        button.innerHTML = filter.icon;
+        button.appendChild(filter.iconFactory());
 
         const badge = createBadge();
         button.appendChild(badge);
@@ -677,7 +716,7 @@
             display:inline-flex; align-items:center; justify-content:center;
         `;
         // 16x16 chevron path used by Strava's entry share menus — sized right for our row.
-        button.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M14.384 5.5L8.796 11.09c-.44.44-1.152.44-1.591 0L1.616 5.5l.884-.884 5.5 5.5 5.5-5.5z"/></svg>';
+        button.appendChild(createChevronIcon());
         button.addEventListener('click', (event) => {
             event.preventDefault();
             const hidden = targetForm.style.display === 'none';
