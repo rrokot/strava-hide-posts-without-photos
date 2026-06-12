@@ -17,7 +17,10 @@ Orange is on; badges show hidden counts. The "already liked" and "your own" filt
 
 ## Installation
 
-Install the [Chrome extension](https://chromewebstore.google.com/detail/strava-feed-filters/jdefobolefeekjbgaclabbcffmebamdo).
+Install the browser extension:
+
+- [Chrome Web Store](https://chromewebstore.google.com/detail/strava-feed-filters/jdefobolefeekjbgaclabbcffmebamdo)
+- [Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/strava-feed-filters/)
 
 Or install the Tampermonkey userscript:
 
