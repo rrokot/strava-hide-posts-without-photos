@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Strava Feed Filters",
-  "version": "5.52.2",
-  "description": "Hide photo-less, virtual, liked, and own posts in the Strava feed.",
+  "version": "5.53.0",
+  "description": "Filter the Strava feed by activity type, media, virtual activities, kudos, and ownership.",
   "icons": {
     "16": "icon-16.png",
     "48": "icon-48.png",

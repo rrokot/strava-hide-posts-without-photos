@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Strava Feed Filters
 // @namespace    https://github.com/rrokot/strava-hide-posts-without-photos
-// @version      5.52.2
-// @description  Hide posts without photos or videos, virtual activities, posts you already liked, and your own posts in your Strava feed. Adds a Following/My Activity toggle.
+// @version      5.53.0
+// @description  Filter your Strava feed by activity type, media, virtual activities, kudos, and ownership. Adds a Following/My Activity toggle.
 // @author       https://www.strava.com/athletes/5931245
 // @match        https://www.strava.com/dashboard*
 // @grant        none
