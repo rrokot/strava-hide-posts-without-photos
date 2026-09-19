@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Strava Feed Filters",
-  "version": "5.53.1",
+  "version": "5.53.2",
   "description": "Filter the Strava feed by activity type, media, virtual activities, kudos, and ownership.",
   "icons": {
     "16": "icon-16.png",
@@ -17,7 +17,8 @@
       "js": [
         "content.js"
       ],
-      "run_at": "document_idle"
+      "run_at": "document_idle",
+      "world": "MAIN"
     }
   ],
   "browser_specific_settings": {

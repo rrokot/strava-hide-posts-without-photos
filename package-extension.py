@@ -78,6 +78,16 @@ def main() -> int:
         f"{USER_SCRIPT_PATH.name} @version {script_version} does not match manifest version {manifest['version']}",
     )
 
+    # The userscript runs in the page context (@grant none), so the content script has to
+    # as well: patching history.pushState from an isolated world would not see Strava's own
+    # SPA navigations, and the two builds would drift apart in behaviour.
+    content_scripts = manifest.get("content_scripts") or []
+    assert_valid(bool(content_scripts), "manifest content_scripts is missing")
+    assert_valid(
+        all(entry.get("world") == "MAIN" for entry in content_scripts),
+        "content scripts must declare \"world\": \"MAIN\" to match the userscript's page context",
+    )
+
     assert_valid(
         manifest.get("browser_specific_settings", {}).get("gecko", {}).get("id"),
         "Firefox gecko id is missing",

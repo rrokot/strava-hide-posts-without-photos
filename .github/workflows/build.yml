@@ -1,0 +1,36 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Check the userscript parses
+        run: node --check strava-photo-filter-toggle.user.js
+
+      # Validates the manifest, checks that the manifest, userscript header and .meta.js
+      # stub agree on the version, and regenerates extension/content.js.
+      - name: Validate and package the extension
+        run: python package-extension.py
+
+      # content.js is generated from the userscript but committed, so it can go stale if
+      # someone edits the userscript without repackaging.
+      - name: Fail if extension/content.js is out of date
+        run: git diff --exit-code extension/content.js
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: extension-zip
+          path: dist/*.zip
+          if-no-files-found: error
