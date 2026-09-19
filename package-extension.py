@@ -6,6 +6,11 @@ import zipfile
 from pathlib import Path
 
 
+# Packages extension/ into a store-ready zip and regenerates content.js from the
+# userscript. The checks here cover only what is specific to shipping one source as both
+# a userscript and an extension; generic manifest validation (schema, icon files, AMO
+# rules) is left to web-ext lint, which CI runs against extension/.
+
 ROOT = Path(__file__).resolve().parent
 EXTENSION_DIR = ROOT / "extension"
 MANIFEST_PATH = EXTENSION_DIR / "manifest.json"
@@ -60,8 +65,6 @@ def main() -> int:
     assert_valid(META_PATH.exists(), f"{META_PATH.name} is missing")
 
     manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
-    assert_valid(manifest.get("manifest_version") == 3, "manifest_version must be 3")
-    assert_valid(manifest.get("version"), "manifest version is missing")
 
     # The version is carried by three files: the manifest, the userscript header, and the
     # .meta.js stub Tampermonkey polls for updates. Drift between them silently stops
@@ -73,9 +76,10 @@ def main() -> int:
         f"{META_PATH.name} is out of sync with the {USER_SCRIPT_PATH.name} metadata block",
     )
     script_version = read_version(metadata, USER_SCRIPT_PATH.name)
+    manifest_version = manifest.get("version")
     assert_valid(
-        script_version == manifest["version"],
-        f"{USER_SCRIPT_PATH.name} @version {script_version} does not match manifest version {manifest['version']}",
+        script_version == manifest_version,
+        f"{USER_SCRIPT_PATH.name} @version {script_version} does not match manifest version {manifest_version}",
     )
 
     # The userscript runs in the page context (@grant none), so the content script has to
@@ -104,11 +108,6 @@ def main() -> int:
         manifest.get("browser_specific_settings", {}).get("gecko_android") == {},
         "Firefox Android support requires empty gecko_android settings",
     )
-
-    for size in ("16", "48", "64", "128"):
-        icon_path = manifest.get("icons", {}).get(size)
-        assert_valid(icon_path, f"manifest icon {size} is missing")
-        assert_valid((EXTENSION_DIR / icon_path).exists(), f"icon file {icon_path} is missing")
 
     CONTENT_PATH.write_bytes(strip_userscript_metadata(user_script_source).encode("utf-8"))
 

@@ -19,8 +19,15 @@ jobs:
       - name: Check the userscript parses
         run: node --check strava-photo-filter-toggle.user.js
 
-      # Validates the manifest, checks that the manifest, userscript header and .meta.js
-      # stub agree on the version, and regenerates extension/content.js.
+      # Mozilla's addons-linter, the same one AMO review runs: manifest schema, missing
+      # icon files, remote code, deprecated APIs. Run via npx so the repository keeps no
+      # Node dependencies. Warnings do not fail the build; errors do.
+      - name: Lint the extension for the add-on stores
+        run: npx --yes web-ext lint --source-dir=extension
+
+      # Checks what the linter cannot know about: that the manifest, userscript header
+      # and .meta.js stub agree on the version and that the content script keeps the
+      # userscript's page context. Also regenerates extension/content.js.
       - name: Validate and package the extension
         run: python package-extension.py
 
