@@ -1,0 +1,22 @@
+# Editors and local tooling
+.idea/
+.gigaide/
+.vscode/
+.claude/settings.local.json
+.DS_Store
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Build output (published to the stores, not to git)
+dist/
+
+# Strava APKs used as ReVanced patch input
+apk/
+
+# Gradle (revanced-strava-feed-filters)
+.gradle/
+build/
+local.properties

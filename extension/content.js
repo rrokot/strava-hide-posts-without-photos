@@ -17,13 +17,7 @@
     const OWNER_LINK_SELECTOR = '[data-testid="owners-name"], [data-testid="owner-avatar"]';
     const ME_LINK_SELECTOR = 'header a[href*="/athletes/"], nav a[href*="/athletes/"]';
     const ATHLETE_HREF_PATTERN = /\/athletes\/(\d+)/;
-    const NO_MEDIA_ENTRY_ATTRIBUTE = 'data-strava-no-media-entry';
-    const VIRTUAL_ENTRY_ATTRIBUTE = 'data-strava-virtual-entry';
-    const LIKED_ENTRY_ATTRIBUTE = 'data-strava-liked-entry';
-    const MINE_ENTRY_ATTRIBUTE = 'data-strava-mine-entry';
-    const HIDDEN_ACTIVITY_TYPE_ENTRY_ATTRIBUTE = 'data-strava-hidden-activity-type-entry';
     const ACTIVITY_TYPE_FILTER_ID = 'activityType';
-    const ACTIVITY_TYPE_FILTER_BODY_CLASS = 'strava-hide-activity-types';
     const ACTIVITY_TYPE_STORAGE_KEY = 'stravaHiddenActivityTypes';
     const BUTTON_ACTIVE_COLOR = '#fc5200';
     const BUTTON_INACTIVE_COLOR = '#888';
@@ -43,7 +37,6 @@
             title: 'Hide posts without photos or videos',
             storageKey: 'stravaPhotoFilterEnabled',
             defaultEnabled: true,
-            bodyClass: 'strava-hide-no-photo',
             iconFactory: () => createPathIcon(
                 '0 0 24 24',
                 'M12 5c-3.86 0-7 3.14-7 7s3.14 7 7 7 7-3.14 7-7-3.14-7-7-7zm0-2c1.1 0 2 .9 2 2h3.17C18.6 5 19 5.4 19 5.83V7h1c1.1 0 2 .9 2 2v9c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V9c0-1.1.9-2 2-2h1V5.83C5 5.4 5.4 5 5.83 5H9c0-1.1.9-2 2-2zm0 5c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zm0 2c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3z'
@@ -54,7 +47,6 @@
             title: 'Hide virtual activities',
             storageKey: 'stravaVirtualFilterEnabled',
             defaultEnabled: false,
-            bodyClass: 'strava-hide-virtual',
             iconFactory: () => createTextIcon('VR')
         },
         {
@@ -62,7 +54,6 @@
             title: 'Show posts I have not liked yet',
             storageKey: 'stravaUnlikedFilterEnabled',
             defaultEnabled: false,
-            bodyClass: 'strava-show-unliked',
             // Same path Strava uses for its filled_kudos icon, so the filter mirrors the affordance it controls.
             iconFactory: () => createPathIcon(
                 '0 0 16 16',
@@ -74,8 +65,44 @@
             title: 'Hide my own posts',
             storageKey: 'stravaMineFilterEnabled',
             defaultEnabled: false,
-            bodyClass: 'strava-hide-mine',
             iconFactory: () => createTextIcon('ME')
+        }
+    ];
+
+    // One row per way a feed entry can be hidden: the attribute stamped on the entry, the
+    // body class that switches the matching CSS rule on, and how to read the flag off an
+    // analyzed entry. Styling, tracking and badge counts all iterate this table, so a new
+    // filter is one row here plus, if it needs a toggle button, one in FILTERS.
+    const ENTRY_FLAGS = [
+        {
+            id: 'photo',
+            attribute: 'data-strava-no-media-entry',
+            bodyClass: 'strava-hide-no-photo',
+            test: state => !state.hasMedia
+        },
+        {
+            id: 'virtual',
+            attribute: 'data-strava-virtual-entry',
+            bodyClass: 'strava-hide-virtual',
+            test: state => state.isVirtual
+        },
+        {
+            id: 'unliked',
+            attribute: 'data-strava-liked-entry',
+            bodyClass: 'strava-show-unliked',
+            test: state => state.likedByMe
+        },
+        {
+            id: 'mine',
+            attribute: 'data-strava-mine-entry',
+            bodyClass: 'strava-hide-mine',
+            test: state => state.mine
+        },
+        {
+            id: ACTIVITY_TYPE_FILTER_ID,
+            attribute: 'data-strava-hidden-activity-type-entry',
+            bodyClass: 'strava-hide-activity-types',
+            test: state => areAllActivityTypesHidden(state.activityTypes)
         }
     ];
 
@@ -90,13 +117,6 @@
     const trackedEntries = new Map();
     const hiddenActivityTypes = new Set();
     const activityTypeLabels = new Map();
-    const hiddenCounts = {
-        photo: 0,
-        virtual: 0,
-        unliked: 0,
-        mine: 0,
-        activityType: 0
-    };
 
     // Style and state helpers
     function ensureStyles() {
@@ -104,50 +124,64 @@
             return;
         }
 
+        const hideRules = ENTRY_FLAGS.map(flag => `
+            body.${flag.bodyClass} ${FEED_CONTAINER_SELECTOR} ${FEED_ENTRY_SELECTOR}[${flag.attribute}="true"] {
+                display: none !important;
+            }
+        `).join('');
+
         const style = document.createElement('style');
         style.id = STYLE_ELEMENT_ID;
         style.textContent = `
-            body.${getFilterConfig('photo').bodyClass} ${FEED_CONTAINER_SELECTOR} ${FEED_ENTRY_SELECTOR}[${NO_MEDIA_ENTRY_ATTRIBUTE}="true"] {
-                display: none !important;
-            }
-
-            body.${getFilterConfig('virtual').bodyClass} ${FEED_CONTAINER_SELECTOR} ${FEED_ENTRY_SELECTOR}[${VIRTUAL_ENTRY_ATTRIBUTE}="true"] {
-                display: none !important;
-            }
-
-            body.${getFilterConfig('unliked').bodyClass} ${FEED_CONTAINER_SELECTOR} ${FEED_ENTRY_SELECTOR}[${LIKED_ENTRY_ATTRIBUTE}="true"] {
-                display: none !important;
-            }
-
-            body.${getFilterConfig('mine').bodyClass} ${FEED_CONTAINER_SELECTOR} ${FEED_ENTRY_SELECTOR}[${MINE_ENTRY_ATTRIBUTE}="true"] {
-                display: none !important;
-            }
-
-            body.${ACTIVITY_TYPE_FILTER_BODY_CLASS} ${FEED_CONTAINER_SELECTOR} ${FEED_ENTRY_SELECTOR}[${HIDDEN_ACTIVITY_TYPE_ENTRY_ATTRIBUTE}="true"] {
-                display: none !important;
-            }
+            ${hideRules}
 
             a[href*="/gift"] img {
                 display: none !important;
             }
-
         `;
 
         document.head.appendChild(style);
     }
 
-    function getFilterConfig(filterId) {
-        return FILTERS.find(filter => filter.id === filterId);
+    function getEntryFlag(flagId) {
+        return ENTRY_FLAGS.find(flag => flag.id === flagId);
+    }
+
+    // Site data can be blocked (Chrome's per-site "block data" setting, Firefox ETP), and
+    // then every localStorage access throws. Filters still work for the session in that
+    // case, they just stop persisting.
+    function readStoredValue(key) {
+        try {
+            return localStorage.getItem(key);
+        } catch (_) {
+            return null;
+        }
+    }
+
+    function writeStoredValue(key, value) {
+        try {
+            localStorage.setItem(key, value);
+        } catch (_) {
+            // Persistence is best-effort.
+        }
+    }
+
+    function removeStoredValue(key) {
+        try {
+            localStorage.removeItem(key);
+        } catch (_) {
+            // Persistence is best-effort.
+        }
     }
 
     function loadFilterState() {
         FILTERS.forEach(filter => {
-            const savedValue = localStorage.getItem(filter.storageKey);
+            const savedValue = readStoredValue(filter.storageKey);
             filterState[filter.id] = savedValue === null ? filter.defaultEnabled : savedValue === 'true';
         });
 
         try {
-            const savedTypes = JSON.parse(localStorage.getItem(ACTIVITY_TYPE_STORAGE_KEY) || '[]');
+            const savedTypes = JSON.parse(readStoredValue(ACTIVITY_TYPE_STORAGE_KEY) || '[]');
             if (Array.isArray(savedTypes)) {
                 savedTypes.forEach(label => {
                     const normalized = normalizeText(label);
@@ -158,13 +192,13 @@
                 });
             }
         } catch (_) {
-            localStorage.removeItem(ACTIVITY_TYPE_STORAGE_KEY);
+            removeStoredValue(ACTIVITY_TYPE_STORAGE_KEY);
         }
     }
 
     function saveHiddenActivityTypes() {
         const labels = [...hiddenActivityTypes].map(type => activityTypeLabels.get(type) || type);
-        localStorage.setItem(ACTIVITY_TYPE_STORAGE_KEY, JSON.stringify(labels));
+        writeStoredValue(ACTIVITY_TYPE_STORAGE_KEY, JSON.stringify(labels));
     }
 
     function updateBadge(badge, count) {
@@ -226,12 +260,33 @@
         return myAthleteId;
     }
 
+    // Counts are derived from the tracked entries rather than maintained incrementally:
+    // one pass over cached state objects, and nothing that can drift out of sync.
+    function countHiddenEntries() {
+        const counts = {};
+        ENTRY_FLAGS.forEach(flag => {
+            counts[flag.id] = 0;
+        });
+
+        trackedEntries.forEach(state => {
+            ENTRY_FLAGS.forEach(flag => {
+                if (state.flags[flag.id]) {
+                    counts[flag.id] += 1;
+                }
+            });
+        });
+
+        return counts;
+    }
+
     function refreshBadges() {
+        const counts = countHiddenEntries();
+
         FILTERS.forEach(filter => {
-            const count = isFilterApplicable(filter) ? hiddenCounts[filter.id] : 0;
+            const count = isFilterApplicable(filter) ? counts[filter.id] : 0;
             updateBadge(filterUi[filter.id]?.badge, count);
         });
-        updateBadge(filterUi[ACTIVITY_TYPE_FILTER_ID]?.badge, hiddenCounts.activityType);
+        updateBadge(filterUi[ACTIVITY_TYPE_FILTER_ID]?.badge, counts[ACTIVITY_TYPE_FILTER_ID]);
     }
 
     function applyFilterClasses() {
@@ -240,9 +295,9 @@
         }
 
         FILTERS.forEach(filter => {
-            document.body.classList.toggle(filter.bodyClass, isFilterApplicable(filter));
+            document.body.classList.toggle(getEntryFlag(filter.id).bodyClass, isFilterApplicable(filter));
         });
-        document.body.classList.toggle(ACTIVITY_TYPE_FILTER_BODY_CLASS, hiddenActivityTypes.size > 0);
+        document.body.classList.toggle(getEntryFlag(ACTIVITY_TYPE_FILTER_ID).bodyClass, hiddenActivityTypes.size > 0);
     }
 
     function syncFilterUi() {
@@ -255,7 +310,7 @@
 
     function toggleFilter(filter) {
         filterState[filter.id] = !filterState[filter.id];
-        localStorage.setItem(filter.storageKey, filterState[filter.id] ? 'true' : 'false');
+        writeStoredValue(filter.storageKey, filterState[filter.id] ? 'true' : 'false');
         applyFilterClasses();
         syncFilterUi();
     }
@@ -340,152 +395,53 @@
     function analyzeEntry(entry) {
         const activityTypes = getActivityTypes(entry);
         registerActivityTypes(activityTypes);
-        return {
+
+        const state = {
             hasMedia: !!entry.querySelector(MEDIA_SELECTOR),
             isVirtual: isVirtualActivity(entry),
             likedByMe: isLikedByMe(entry),
             mine: isMyPost(entry),
             activityTypes,
-            activityTypeHidden: areAllActivityTypesHidden(activityTypes)
+            flags: {}
         };
+        ENTRY_FLAGS.forEach(flag => {
+            state.flags[flag.id] = flag.test(state);
+        });
+        return state;
     }
 
-    function setNoMediaEntryAttribute(entry, hasMedia) {
-        if (!hasMedia) {
-            entry.setAttribute(NO_MEDIA_ENTRY_ATTRIBUTE, 'true');
-            return;
-        }
+    function applyEntryAttributes(entry, flags) {
+        ENTRY_FLAGS.forEach(flag => {
+            if (flags[flag.id]) {
+                entry.setAttribute(flag.attribute, 'true');
+                return;
+            }
 
-        entry.removeAttribute(NO_MEDIA_ENTRY_ATTRIBUTE);
+            entry.removeAttribute(flag.attribute);
+        });
     }
 
-    function setVirtualEntryAttribute(entry, isVirtual) {
-        if (isVirtual) {
-            entry.setAttribute(VIRTUAL_ENTRY_ATTRIBUTE, 'true');
-            return;
-        }
-
-        entry.removeAttribute(VIRTUAL_ENTRY_ATTRIBUTE);
+    function clearEntryAttributes(entry) {
+        ENTRY_FLAGS.forEach(flag => entry.removeAttribute(flag.attribute));
     }
 
-    function setLikedEntryAttribute(entry, likedByMe) {
-        if (likedByMe) {
-            entry.setAttribute(LIKED_ENTRY_ATTRIBUTE, 'true');
-            return;
-        }
-
-        entry.removeAttribute(LIKED_ENTRY_ATTRIBUTE);
-    }
-
-    function setMineEntryAttribute(entry, mine) {
-        if (mine) {
-            entry.setAttribute(MINE_ENTRY_ATTRIBUTE, 'true');
-            return;
-        }
-
-        entry.removeAttribute(MINE_ENTRY_ATTRIBUTE);
-    }
-
-    function setHiddenActivityTypeEntryAttribute(entry, hidden) {
-        if (hidden) {
-            entry.setAttribute(HIDDEN_ACTIVITY_TYPE_ENTRY_ATTRIBUTE, 'true');
-            return;
-        }
-
-        entry.removeAttribute(HIDDEN_ACTIVITY_TYPE_ENTRY_ATTRIBUTE);
-    }
-
-    // Track only the delta for entries that were added or changed, so badges stay cheap.
     function updateTrackedEntry(entry) {
-        const nextState = analyzeEntry(entry);
-        const previousState = trackedEntries.get(entry);
-
-        if (!previousState) {
-            if (!nextState.hasMedia) {
-                hiddenCounts.photo += 1;
-            }
-            if (nextState.isVirtual) {
-                hiddenCounts.virtual += 1;
-            }
-            if (nextState.likedByMe) {
-                hiddenCounts.unliked += 1;
-            }
-            if (nextState.mine) {
-                hiddenCounts.mine += 1;
-            }
-            if (nextState.activityTypeHidden) {
-                hiddenCounts.activityType += 1;
-            }
-        } else {
-            if (previousState.hasMedia !== nextState.hasMedia) {
-                hiddenCounts.photo += nextState.hasMedia ? -1 : 1;
-            }
-            if (previousState.isVirtual !== nextState.isVirtual) {
-                hiddenCounts.virtual += nextState.isVirtual ? 1 : -1;
-            }
-            if (previousState.likedByMe !== nextState.likedByMe) {
-                hiddenCounts.unliked += nextState.likedByMe ? 1 : -1;
-            }
-            if (previousState.mine !== nextState.mine) {
-                hiddenCounts.mine += nextState.mine ? 1 : -1;
-            }
-            if (previousState.activityTypeHidden !== nextState.activityTypeHidden) {
-                hiddenCounts.activityType += nextState.activityTypeHidden ? 1 : -1;
-            }
-        }
-
-        trackedEntries.set(entry, nextState);
-        setNoMediaEntryAttribute(entry, nextState.hasMedia);
-        setVirtualEntryAttribute(entry, nextState.isVirtual);
-        setLikedEntryAttribute(entry, nextState.likedByMe);
-        setMineEntryAttribute(entry, nextState.mine);
-        setHiddenActivityTypeEntryAttribute(entry, nextState.activityTypeHidden);
+        const state = analyzeEntry(entry);
+        trackedEntries.set(entry, state);
+        applyEntryAttributes(entry, state.flags);
     }
 
     function removeTrackedEntry(entry) {
-        const previousState = trackedEntries.get(entry);
-        if (!previousState) {
+        if (!trackedEntries.delete(entry)) {
             return;
         }
 
-        if (!previousState.hasMedia) {
-            hiddenCounts.photo = Math.max(0, hiddenCounts.photo - 1);
-        }
-        if (previousState.isVirtual) {
-            hiddenCounts.virtual = Math.max(0, hiddenCounts.virtual - 1);
-        }
-        if (previousState.likedByMe) {
-            hiddenCounts.unliked = Math.max(0, hiddenCounts.unliked - 1);
-        }
-        if (previousState.mine) {
-            hiddenCounts.mine = Math.max(0, hiddenCounts.mine - 1);
-        }
-        if (previousState.activityTypeHidden) {
-            hiddenCounts.activityType = Math.max(0, hiddenCounts.activityType - 1);
-        }
-
-        trackedEntries.delete(entry);
-        entry.removeAttribute(NO_MEDIA_ENTRY_ATTRIBUTE);
-        entry.removeAttribute(VIRTUAL_ENTRY_ATTRIBUTE);
-        entry.removeAttribute(LIKED_ENTRY_ATTRIBUTE);
-        entry.removeAttribute(MINE_ENTRY_ATTRIBUTE);
-        entry.removeAttribute(HIDDEN_ACTIVITY_TYPE_ENTRY_ATTRIBUTE);
+        clearEntryAttributes(entry);
     }
 
     function clearTrackedEntries() {
-        trackedEntries.forEach((_, entry) => {
-            entry.removeAttribute(NO_MEDIA_ENTRY_ATTRIBUTE);
-            entry.removeAttribute(VIRTUAL_ENTRY_ATTRIBUTE);
-            entry.removeAttribute(LIKED_ENTRY_ATTRIBUTE);
-            entry.removeAttribute(MINE_ENTRY_ATTRIBUTE);
-            entry.removeAttribute(HIDDEN_ACTIVITY_TYPE_ENTRY_ATTRIBUTE);
-        });
+        trackedEntries.forEach((_, entry) => clearEntryAttributes(entry));
         trackedEntries.clear();
-        hiddenCounts.photo = 0;
-        hiddenCounts.virtual = 0;
-        hiddenCounts.unliked = 0;
-        hiddenCounts.mine = 0;
-        hiddenCounts.activityType = 0;
     }
 
     function indexFeedEntries() {
@@ -1110,15 +1066,6 @@
             }
         });
     }
-
-    window.addEventListener('beforeunload', () => {
-        disconnectFeedObserver();
-
-        if (rootObserver) {
-            rootObserver.disconnect();
-            rootObserver = null;
-        }
-    });
 
     initialize();
 })();
