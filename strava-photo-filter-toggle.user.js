@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Strava Feed Filters
 // @namespace    https://github.com/rrokot/strava-hide-posts-without-photos
-// @version      5.53.2
+// @version      5.53.3
 // @description  Filter your Strava feed by activity type, media, virtual activities, kudos, and ownership. Adds a Following/My Activity toggle.
 // @author       https://www.strava.com/athletes/5931245
 // @match        https://www.strava.com/dashboard*
@@ -30,6 +30,7 @@
     const UNFILLED_KUDOS_SELECTOR = 'svg[data-testid="unfilled_kudos"]';
     const OWNER_LINK_SELECTOR = '[data-testid="owners-name"], [data-testid="owner-avatar"]';
     const ME_LINK_SELECTOR = 'header a[href*="/athletes/"], nav a[href*="/athletes/"]';
+    const UNSTYLED_GIFT_LINK_SELECTOR = 'a[href*="/gift"].btn-primary';
     const ATHLETE_HREF_PATTERN = /\/athletes\/(\d+)/;
     const ACTIVITY_TYPE_FILTER_ID = 'activityType';
     const ACTIVITY_TYPE_STORAGE_KEY = 'stravaHiddenActivityTypes';
@@ -126,6 +127,7 @@
     let feedContainer = null;
     let myAthleteId = null;
     let stravaButtonClass = null;
+    let rootCheckScheduled = false;
     const filterState = {};
     const filterUi = {};
     const trackedEntries = new Map();
@@ -965,7 +967,7 @@
 
     function restyleGiftLink() {
         const navLinkStyle = getNavLinkComputedStyle();
-        document.querySelectorAll('a[href*="/gift"].btn-primary').forEach(link => {
+        document.querySelectorAll(UNSTYLED_GIFT_LINK_SELECTOR).forEach(link => {
             link.classList.remove('btn', 'btn-sm', 'btn-primary', 'experiment');
             link.classList.add('nav-link');
             applyNavLinkStyleFromComputed(link, navLinkStyle);
@@ -973,49 +975,47 @@
     }
 
     // Bootstrap
-    function nodeTouchesBootstrapTargets(node) {
-        if (!isElement(node)) {
-            return false;
+    // The feed mutates on every scroll, so the root observer inspects no mutation records
+    // at all: it coalesces a batch into one animation frame and re-checks the handful of
+    // things we hook into with cheap document-level lookups.
+    function scheduleRootCheck() {
+        if (rootCheckScheduled) {
+            return;
         }
 
-        return node.id === FEED_FILTER_INPUT_ID
-            || node.matches(FEED_CONTAINER_SELECTOR)
-            || !!node.querySelector(`#${FEED_FILTER_INPUT_ID}`)
-            || !!node.querySelector(FEED_CONTAINER_SELECTOR);
+        rootCheckScheduled = true;
+        requestAnimationFrame(runRootCheck);
     }
 
-    function mutationsTouchBootstrapTargets(mutations) {
-        return mutations.some(mutation => {
-            if (nodeTouchesBootstrapTargets(mutation.target)) {
-                return true;
-            }
+    function runRootCheck() {
+        rootCheckScheduled = false;
 
-            return [...mutation.addedNodes, ...mutation.removedNodes].some(nodeTouchesBootstrapTargets);
-        });
+        if (!document.getElementById(FILTER_WRAPPER_ID)) {
+            mountFilterButtonsIfNeeded();
+        }
+        // Restyling drops btn-primary, so a gift link matches here at most once.
+        if (document.querySelector(UNSTYLED_GIFT_LINK_SELECTOR)) {
+            restyleGiftLink();
+        }
+
+        const idJustResolved = resolveMyAthleteIdIfPossible();
+        // Returns immediately unless Strava swapped the feed container out from under us.
+        refreshFeedContainer();
+        if (idJustResolved) {
+            trackedEntries.forEach((_, entry) => updateTrackedEntry(entry));
+            refreshBadges();
+        }
+        // A few classList.toggle calls, and they restore our state if Strava rewrites
+        // body's className.
+        applyFilterClasses();
     }
 
-    // Root observer only reattaches UI/feed wiring when Strava replaces major containers.
     function startRootObserver() {
         if (rootObserver) {
             return;
         }
 
-        rootObserver = new MutationObserver((mutations) => {
-            if (!mutationsTouchBootstrapTargets(mutations)) {
-                return;
-            }
-
-            mountFilterButtonsIfNeeded();
-            restyleGiftLink();
-            const idJustResolved = resolveMyAthleteIdIfPossible();
-            refreshFeedContainer();
-            if (idJustResolved) {
-                trackedEntries.forEach((_, entry) => updateTrackedEntry(entry));
-            }
-            applyFilterClasses();
-            refreshBadges();
-        });
-
+        rootObserver = new MutationObserver(scheduleRootCheck);
         rootObserver.observe(document.body, { childList: true, subtree: true });
     }
 
