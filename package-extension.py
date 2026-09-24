@@ -55,7 +55,8 @@ def read_version(metadata: str, origin: str) -> str:
 def zip_extension(zip_path: Path) -> None:
     with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
         for file_path in sorted(EXTENSION_DIR.iterdir()):
-            if file_path.is_file():
+            # Dotfiles are local tool state, such as the .amo-upload-uuid web-ext sign leaves.
+            if file_path.is_file() and not file_path.name.startswith("."):
                 archive.write(file_path, file_path.name)
 
 

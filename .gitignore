@@ -20,3 +20,7 @@ apk/
 .gradle/
 build/
 local.properties
+
+# AMO API credentials (read by amo.py)
+.env
+extension/.amo-upload-uuid
